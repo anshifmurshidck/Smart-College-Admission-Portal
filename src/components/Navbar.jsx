@@ -6,7 +6,11 @@ export default function Navbar() {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+<<<<<<< Updated upstream
   const location = useLocation();
+=======
+  const [theme, setTheme] = useState('light');
+>>>>>>> Stashed changes
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -42,6 +46,7 @@ export default function Navbar() {
           : 'bg-transparent py-5'
       }`}
       style={{
+<<<<<<< Updated upstream
         backgroundColor: scrolled ? 'var(--bg-glass)' : 'transparent',
         borderBottom: scrolled ? '1px solid var(--border-color)' : 'none',
         backdropFilter: scrolled ? 'blur(12px)' : 'none',
@@ -80,6 +85,49 @@ export default function Navbar() {
             <span className="text-[10px] uppercase tracking-widest text-slate-400" style={{ color: 'var(--text-secondary)' }}>
               Thought Minds
             </span>
+=======
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        height: '72px',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        transition: 'all 0.4s ease',
+        background: scrolled
+          ? 'var(--bg-secondary)'
+          : 'var(--bg-glass)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        borderBottom: scrolled
+          ? '1px solid var(--border-color)'
+          : '1px solid var(--border-glass)',
+        boxShadow: scrolled ? 'var(--shadow-card)' : 'none',
+      }}
+    >
+      <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+
+        {/* ── Logo ── */}
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', textDecoration: 'none' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
+            padding: '9px',
+            borderRadius: '12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--glow-royal)',
+            animation: 'float-fast 4s ease-in-out infinite',
+          }}>
+            <GraduationCap size={20} color="white" />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span style={{
+              fontWeight: 900, fontSize: '18px', letterSpacing: '0.5px',
+              fontFamily: 'var(--font-display)', color: 'var(--text-primary)',
+            }}>TMEC</span>
+            <span style={{
+              fontSize: '8px', color: 'var(--color-royal)', letterSpacing: '2px',
+              fontWeight: 700, textTransform: 'uppercase', marginTop: '2px',
+            }}>Admissions Portal</span>
+>>>>>>> Stashed changes
           </div>
         </Link>
 
@@ -93,6 +141,7 @@ export default function Navbar() {
                 to={link.path} 
                 className={`relative py-2 text-sm font-medium transition-colors hover:text-blue-500`}
                 style={{
+<<<<<<< Updated upstream
                   color: isActive ? 'var(--color-royal)' : 'var(--text-secondary)',
                   fontWeight: isActive ? '700' : '500'
                 }}
@@ -103,6 +152,31 @@ export default function Navbar() {
                         style={{ background: 'linear-gradient(95deg, var(--color-royal), var(--color-purple))' }}
                   />
                 )}
+=======
+                  fontSize: '13px', fontWeight: 600,
+                  padding: '8px 14px', borderRadius: '8px',
+                  color: active ? 'var(--color-royal)' : 'var(--text-secondary)',
+                  background: active ? 'rgba(37,99,235,0.08)' : 'transparent',
+                  border: '1px solid transparent',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  textDecoration: 'none',
+                }}
+                onMouseOver={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                    e.currentTarget.style.background = 'rgba(124,58,237,0.05)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                {link.name}
+>>>>>>> Stashed changes
               </Link>
             );
           })}
@@ -112,9 +186,27 @@ export default function Navbar() {
             onClick={toggleTheme}
             className="p-2 rounded-full border border-slate-700/10 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-500/10 transition-colors"
             style={{
+<<<<<<< Updated upstream
               borderColor: 'var(--border-color)',
               color: 'var(--text-primary)',
               cursor: 'pointer'
+=======
+              background: 'transparent',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-secondary)',
+              borderRadius: '8px',
+              width: '38px', height: '38px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(37,99,235,0.08)';
+              e.currentTarget.style.color = 'var(--color-royal)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+>>>>>>> Stashed changes
             }}
           >
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
@@ -127,17 +219,36 @@ export default function Navbar() {
             onClick={toggleTheme}
             className="p-2 rounded-full border border-slate-700/10 dark:border-white/10 text-slate-600 dark:text-slate-300"
             style={{
+<<<<<<< Updated upstream
               borderColor: 'var(--border-color)',
               color: 'var(--text-primary)'
+=======
+              background: 'transparent', border: '1px solid var(--border-color)',
+              color: 'var(--text-secondary)', borderRadius: '8px',
+              width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+>>>>>>> Stashed changes
             }}
           >
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
+<<<<<<< Updated upstream
           
           <button 
             onClick={() => setIsOpen(!isOpen)}
             className="p-2 text-slate-600 dark:text-slate-300"
             style={{ color: 'var(--text-primary)' }}
+=======
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            style={{
+              background: mobileOpen ? 'rgba(37,99,235,0.08)' : 'transparent',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-primary)', borderRadius: '8px',
+              width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
+>>>>>>> Stashed changes
           >
             {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -149,8 +260,17 @@ export default function Navbar() {
         <div 
           className="absolute top-full left-0 w-full md:hidden py-6 border-b shadow-2xl animate-fade-in"
           style={{
+<<<<<<< Updated upstream
             backgroundColor: 'var(--bg-secondary)',
             borderColor: 'var(--border-color)',
+=======
+            position: 'fixed',
+            top: '72px', left: 0, right: 0,
+            background: 'var(--bg-secondary)',
+            backdropFilter: 'blur(24px)',
+            borderBottom: '1px solid var(--border-color)',
+            padding: '20px 24px 28px',
+>>>>>>> Stashed changes
             display: 'flex',
             flexDirection: 'column',
             gap: '16px',
@@ -166,14 +286,36 @@ export default function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className="text-base font-semibold py-2 px-4 rounded-lg"
                 style={{
+<<<<<<< Updated upstream
                   color: isActive ? 'var(--color-royal)' : 'var(--text-primary)',
                   backgroundColor: isActive ? 'rgba(37, 99, 235, 0.08)' : 'transparent'
+=======
+                  fontSize: '15px', fontWeight: 600, padding: '12px 16px',
+                  borderRadius: '10px',
+                  color: active ? 'var(--color-royal)' : 'var(--text-secondary)',
+                  background: active ? 'rgba(37,99,235,0.08)' : 'transparent',
+                  textDecoration: 'none', transition: 'all 0.2s ease',
+>>>>>>> Stashed changes
                 }}
               >
                 {link.name}
               </Link>
             );
           })}
+<<<<<<< Updated upstream
+=======
+
+          <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
+
+          <button
+            onClick={handlePortalClick}
+            className="btn-ripple btn-primary"
+            style={{ padding: '13px', fontSize: '14px', width: '100%', justifyContent: 'center' }}
+          >
+            {isAdminLoggedIn ? 'Admin Dashboard' : 'Admin Portal'}
+            <ArrowRight size={16} />
+          </button>
+>>>>>>> Stashed changes
         </div>
       )}
     </nav>

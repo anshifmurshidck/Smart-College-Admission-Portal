@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Search, Loader2, AlertCircle, FileText, Calendar, CheckCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import bgImage from '../assets/track_bg.jpg';
 
 export default function TrackStatus() {
   const [searchParams] = useSearchParams();
@@ -61,8 +62,17 @@ export default function TrackStatus() {
   };
 
   return (
-    <div style={{ padding: '60px 0', minHeight: '100vh' }}>
-      <div className="container" style={{ maxWidth: '700px' }}>
+    <div style={{ 
+      padding: '120px 0 60px 0', 
+      minHeight: '100vh',
+      backgroundImage: `url(${bgImage})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed',
+      position: 'relative'
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--bg-primary)', opacity: 0.85, zIndex: 0 }}></div>
+      <div className="container" style={{ maxWidth: '700px', position: 'relative', zIndex: 1 }}>
         
         {/* Title */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
