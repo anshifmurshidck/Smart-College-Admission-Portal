@@ -167,15 +167,7 @@ export default function Navbar() {
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
-          {/* Admin Portal Button */}
-          <button
-            onClick={handlePortalClick}
-            className="btn-ripple btn-primary"
-            style={{ padding: '9px 20px', fontSize: '13px', gap: '6px' }}
-          >
-            {isAdminLoggedIn ? 'Dashboard' : 'Admin Portal'}
-            <ArrowRight size={14} />
-          </button>
+
         </div>
 
         {/* ── Mobile Toggle ── */}
@@ -245,16 +237,7 @@ export default function Navbar() {
             );
           })}
 
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '10px 0' }} />
 
-          <button
-            onClick={handlePortalClick}
-            className="btn-ripple btn-primary"
-            style={{ padding: '13px', fontSize: '14px', width: '100%', justifyContent: 'center' }}
-          >
-            {isAdminLoggedIn ? 'Admin Dashboard' : 'Admin Portal'}
-            <ArrowRight size={16} />
-          </button>
         </div>
       )}
     </header>
