@@ -101,11 +101,20 @@ class DatabaseManager:
         self._seed_admin()
 
     def _seed_admin(self):
-        """Ensures default admin account has a proper werkzeug password hash."""
+        """Ensures default admin account exists with a proper werkzeug password hash."""
         try:
             from werkzeug.security import generate_password_hash
             admin = self.execute_read_one("SELECT id, password_hash FROM admins WHERE username = %s", ('admin',))
-            if admin and admin['password_hash'] == 'pbkdf2:sha256:600000$admin123_placeholder':
+            if not admin:
+                # No admin exists at all — create the default one
+                new_hash = generate_password_hash('admin123')
+                self.execute_write(
+                    "INSERT INTO admins (username, password_hash, email, name, role) VALUES (%s, %s, %s, %s, %s)",
+                    ('admin', new_hash, 'admin@thoughtminds.edu', 'Super Admin', 'super_admin')
+                )
+                print("[DB MANAGER] Default admin account created (username: admin, password: admin123).")
+            elif admin['password_hash'] == 'pbkdf2:sha256:600000$admin123_placeholder':
+                # Replace placeholder hash with proper bcrypt hash
                 new_hash = generate_password_hash('admin123')
                 self.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
                 print("[DB MANAGER] Default admin password hash initialized.")

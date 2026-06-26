@@ -107,3 +107,9 @@ INSERT INTO departments (name, code, description, head_of_department, email, pho
 ('Mechanical Engineering', 'ME', 'Covers thermo-dynamics, fluid mechanics, industrial robotics, and advanced mechanical systems design.', 'Dr. James Watt', 'hod.mech@thoughtminds.edu', '+1-555-0104'),
 ('Civil Engineering', 'CE', 'Focuses on structural design, geotechnical modeling, urban engineering, and sustainable construction.', 'Dr. Thomas Telford', 'hod.civil@thoughtminds.edu', '+1-555-0105')
 ON DUPLICATE KEY UPDATE name=name;
+
+-- Default Admin Account (password: admin123 — change after first login)
+-- Hash below is werkzeug pbkdf2:sha256 placeholder; _seed_admin() in db.py will replace it on boot.
+INSERT INTO admins (username, password_hash, email, name, role) VALUES
+('admin', 'pbkdf2:sha256:600000$admin123_placeholder', 'admin@thoughtminds.edu', 'Super Admin', 'super_admin')
+ON DUPLICATE KEY UPDATE username=username;

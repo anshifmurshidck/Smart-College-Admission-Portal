@@ -51,7 +51,6 @@ export default function AdminLayout() {
           width: collapsed ? '80px' : '260px',
           backgroundColor: 'var(--color-navy)',
           color: '#ffffff',
-          display: 'flex',
           flexDirection: 'column',
           transition: 'var(--transition-smooth)',
           borderRight: '1px solid rgba(255, 255, 255, 0.05)',
@@ -59,7 +58,7 @@ export default function AdminLayout() {
           position: 'sticky',
           top: 0,
           height: '100vh',
-          display: 'none', // Hide on mobile
+          overflowY: 'auto'
         }}
         className="md:flex"
       >
@@ -233,11 +232,12 @@ export default function AdminLayout() {
             borderBottom: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'between',
+            justifyContent: 'space-between',
             padding: '0 24px',
             position: 'sticky',
             top: 0,
-            zIndex: 30
+            zIndex: 30,
+            gap: '16px'
           }}
         >
           {/* Mobile hamburger menu */}
@@ -252,23 +252,26 @@ export default function AdminLayout() {
           {/* Collapse sidebar button (Desktop) */}
           <button 
             onClick={() => setCollapsed(!collapsed)}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'none' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
             className="md:block"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <Menu size={20} />
           </button>
 
-          <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'none' }} className="md:block">
-            Welcome to the Registrar Management System
+          <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', flex: 1 }} className="md:block">
+            Registrar Management System
           </span>
 
           {/* Quick info display */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }} className="hidden sm:inline">
-              Session: {new Date().getFullYear()} Active
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Session: {new Date().getFullYear()}
             </span>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-            <span style={{ fontSize: '12px', fontWeight: '600', color: '#10b981' }}>SYSTEM ONLINE</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#10b981' }}>ONLINE</span>
+            </div>
           </div>
         </header>
 

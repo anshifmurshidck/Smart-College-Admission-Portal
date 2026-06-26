@@ -1,181 +1,262 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Menu, X, GraduationCap } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { GraduationCap, Menu, X, ArrowRight, Sun, Moon } from 'lucide-react';
 
 export default function Navbar() {
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [isOpen, setIsOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [theme, setTheme] = useState('dark');
 
+  // Track scroll for enhanced nav blur
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  };
+  // Check admin session on path change
+  useEffect(() => {
+    setIsAdminLoggedIn(!!localStorage.getItem('adminToken'));
+  }, [location]);
+
+  // Apply theme to document root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Admissions', path: '/apply' },
-    { name: 'Departments', path: '/departments' },
-    { name: 'Application Status', path: '/track' },
-    { name: 'Admin Portal', path: '/admin/login' },
-    { name: 'Contact', path: '/contact' }
+    { name: 'Home',          path: '/' },
+    { name: 'Departments',   path: '/departments' },
+    { name: 'Apply Now',     path: '/apply' },
+    { name: 'Track Status',  path: '/track' },
+    { name: 'Contact',       path: '/contact' },
   ];
 
+  const handlePortalClick = () => {
+    navigate(isAdminLoggedIn ? '/admin/dashboard' : '/admin/login');
+    setMobileOpen(false);
+  };
+
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
+
   return (
-    <nav 
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
-        scrolled 
-          ? 'bg-slate-900/90 dark:bg-black/80 backdrop-blur-md shadow-lg border-b border-white/5 py-3' 
-          : 'bg-transparent py-5'
-      }`}
+    <header
       style={{
-        backgroundColor: scrolled ? 'var(--bg-glass)' : 'transparent',
-        borderBottom: scrolled ? '1px solid var(--border-color)' : 'none',
-        backdropFilter: scrolled ? 'blur(12px)' : 'none',
-        transition: 'var(--transition-smooth)'
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        height: '72px',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        transition: 'all 0.4s ease',
+        background: scrolled
+          ? 'rgba(3, 7, 18, 0.92)'
+          : 'rgba(3, 7, 18, 0.6)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        borderBottom: scrolled
+          ? '1px solid rgba(59, 130, 246, 0.12)'
+          : '1px solid rgba(255, 255, 255, 0.05)',
+        boxShadow: scrolled ? '0 4px 40px rgba(0,0,0,0.4), 0 0 80px rgba(37,99,235,0.06)' : 'none',
       }}
     >
-      <div className="container flex items-center justify-between">
-        {/* Academic TMEC Custom Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="relative flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg shadow-md group-hover:scale-105 transition-transform"
-               style={{
-                 background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
-                 borderRadius: 'var(--radius-sm)',
-                 padding: '8px'
-               }}
-          >
-            {/* SVG Logo incorporating Shield, Graduation Cap, and Circuit patterns */}
-            <svg viewBox="0 0 100 100" className="w-full h-full text-white fill-current">
-              {/* Shield Outline */}
-              <path d="M50,10 L85,25 C85,60 50,90 50,90 C50,90 15,60 15,25 Z" fill="none" stroke="currentColor" strokeWidth="6" />
-              {/* Graduation Cap */}
-              <path d="M50,25 L75,35 L50,45 L25,35 Z" />
-              <rect x="45" y="42" width="10" height="15" />
-              <path d="M70,37 L70,55 L73,55 L73,37 Z" />
-              {/* Circuit Pattern (subtle lines) */}
-              <circle cx="50" cy="72" r="5" />
-              <line x1="50" y1="58" x2="50" y2="67" stroke="currentColor" strokeWidth="4" />
-              <line x1="35" y1="67" x2="45" y2="72" stroke="currentColor" strokeWidth="4" />
-              <line x1="65" y1="67" x2="55" y2="72" stroke="currentColor" strokeWidth="4" />
-            </svg>
+      <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+
+        {/* ── Logo ── */}
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', textDecoration: 'none' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
+            padding: '9px',
+            borderRadius: '12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(37,99,235,0.4), 0 0 40px rgba(124,58,237,0.2)',
+            animation: 'float 5s ease-in-out infinite',
+          }}>
+            <GraduationCap size={20} color="white" />
           </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-lg tracking-wider" style={{ fontFamily: 'var(--font-display)', color: scrolled ? 'var(--text-primary)' : 'var(--color-navy)', color: 'var(--text-primary)' }}>
-              TMEC
-            </span>
-            <span className="text-[10px] uppercase tracking-widest text-slate-400" style={{ color: 'var(--text-secondary)' }}>
-              Thought Minds
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span style={{
+              fontWeight: 900, fontSize: '18px', letterSpacing: '0.5px',
+              fontFamily: 'var(--font-display)', color: '#ffffff',
+            }}>TMEC</span>
+            <span style={{
+              fontSize: '8px', color: 'var(--color-sky)', letterSpacing: '2px',
+              fontWeight: 700, textTransform: 'uppercase', marginTop: '2px',
+            }}>Admissions Portal</span>
           </div>
         </Link>
 
-        {/* Desktop Menu */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* ── Desktop Nav ── */}
+        <nav className="md:flex" style={{ alignItems: 'center', gap: '6px' }}>
           {navLinks.map((link) => {
-            const isActive = location.pathname === link.path;
+            const active = isActive(link.path);
             return (
-              <Link 
-                key={link.name} 
-                to={link.path} 
-                className={`relative py-2 text-sm font-medium transition-colors hover:text-blue-500`}
+              <Link
+                key={link.path}
+                to={link.path}
                 style={{
-                  color: isActive ? 'var(--color-royal)' : 'var(--text-secondary)',
-                  fontWeight: isActive ? '700' : '500'
+                  fontSize: '13px', fontWeight: 600,
+                  padding: '8px 14px', borderRadius: '8px',
+                  color: active ? '#ffffff' : 'rgba(148,163,184,0.85)',
+                  background: active ? 'rgba(37,99,235,0.15)' : 'transparent',
+                  border: active ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  textDecoration: 'none',
+                }}
+                onMouseOver={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.color = 'rgba(148,163,184,0.85)';
+                    e.currentTarget.style.background = 'transparent';
+                  }
                 }}
               >
                 {link.name}
-                {isActive && (
-                  <span className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
-                        style={{ background: 'linear-gradient(95deg, var(--color-royal), var(--color-purple))' }}
-                  />
+                {active && (
+                  <span style={{
+                    position: 'absolute', bottom: '-1px', left: '14px', right: '14px',
+                    height: '2px',
+                    background: 'linear-gradient(90deg, var(--color-royal), var(--color-sky))',
+                    borderRadius: '2px',
+                    boxShadow: '0 0 8px rgba(56,189,248,0.6)',
+                  }} />
                 )}
               </Link>
             );
           })}
+        </nav>
 
-          {/* Theme Switcher */}
-          <button 
+        {/* ── Desktop Actions ── */}
+        <div className="md:flex" style={{ alignItems: 'center', gap: '10px' }}>
+          {/* Theme Toggle */}
+          <button
             onClick={toggleTheme}
-            className="p-2 rounded-full border border-slate-700/10 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-500/10 transition-colors"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             style={{
-              borderColor: 'var(--border-color)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer'
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(148,163,184,0.9)',
+              borderRadius: '8px',
+              width: '38px', height: '38px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(37,99,235,0.15)';
+              e.currentTarget.style.color = 'var(--color-sky)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+              e.currentTarget.style.color = 'rgba(148,163,184,0.9)';
             }}
           >
-            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
+          {/* Admin Portal Button */}
+          <button
+            onClick={handlePortalClick}
+            className="btn-ripple btn-primary"
+            style={{ padding: '9px 20px', fontSize: '13px', gap: '6px' }}
+          >
+            {isAdminLoggedIn ? 'Dashboard' : 'Admin Portal'}
+            <ArrowRight size={14} />
           </button>
         </div>
 
-        {/* Mobile Toggle Buttons */}
-        <div className="flex items-center gap-4 md:hidden">
-          <button 
+        {/* ── Mobile Toggle ── */}
+        <div className="md:hidden" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
             onClick={toggleTheme}
-            className="p-2 rounded-full border border-slate-700/10 dark:border-white/10 text-slate-600 dark:text-slate-300"
             style={{
-              borderColor: 'var(--border-color)',
-              color: 'var(--text-primary)'
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(148,163,184,0.9)', borderRadius: '8px',
+              width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          
-          <button 
-            onClick={() => setIsOpen(!isOpen)}
-            className="p-2 text-slate-600 dark:text-slate-300"
-            style={{ color: 'var(--text-primary)' }}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            style={{
+              background: mobileOpen ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#ffffff', borderRadius: '8px',
+              width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
           >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
-      {isOpen && (
-        <div 
-          className="absolute top-full left-0 w-full md:hidden py-6 border-b shadow-2xl animate-fade-in"
+      {/* ── Mobile Drawer ── */}
+      {mobileOpen && (
+        <div
+          className="md:hidden"
           style={{
-            backgroundColor: 'var(--bg-secondary)',
-            borderColor: 'var(--border-color)',
+            position: 'fixed',
+            top: '72px', left: 0, right: 0,
+            background: 'rgba(3,7,18,0.97)',
+            backdropFilter: 'blur(24px)',
+            borderBottom: '1px solid rgba(59,130,246,0.12)',
+            padding: '20px 24px 28px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
-            padding: '24px'
+            gap: '6px',
+            zIndex: 99,
+            animation: 'slideUp 0.25s ease forwards',
           }}
         >
           {navLinks.map((link) => {
-            const isActive = location.pathname === link.path;
+            const active = isActive(link.path);
             return (
-              <Link 
-                key={link.name} 
-                to={link.path} 
-                onClick={() => setIsOpen(false)}
-                className="text-base font-semibold py-2 px-4 rounded-lg"
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMobileOpen(false)}
                 style={{
-                  color: isActive ? 'var(--color-royal)' : 'var(--text-primary)',
-                  backgroundColor: isActive ? 'rgba(37, 99, 235, 0.08)' : 'transparent'
+                  fontSize: '15px', fontWeight: 600, padding: '12px 16px',
+                  borderRadius: '10px',
+                  color: active ? '#ffffff' : 'rgba(148,163,184,0.85)',
+                  background: active ? 'rgba(37,99,235,0.12)' : 'transparent',
+                  border: active ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent',
+                  textDecoration: 'none', transition: 'all 0.2s ease',
                 }}
               >
                 {link.name}
               </Link>
             );
           })}
+
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '10px 0' }} />
+
+          <button
+            onClick={handlePortalClick}
+            className="btn-ripple btn-primary"
+            style={{ padding: '13px', fontSize: '14px', width: '100%', justifyContent: 'center' }}
+          >
+            {isAdminLoggedIn ? 'Admin Dashboard' : 'Admin Portal'}
+            <ArrowRight size={16} />
+          </button>
         </div>
       )}
-    </nav>
+    </header>
   );
 }

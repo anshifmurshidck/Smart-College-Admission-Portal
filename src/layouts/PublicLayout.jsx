@@ -7,9 +7,8 @@ export default function PublicLayout() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Navbar />
-      {/* Spacer to push content down below sticky transparent navbar */}
-      <div style={{ height: '80px', backgroundColor: 'var(--bg-primary)' }} />
-      <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)' }}>
+      {/* Offset for fixed navbar height */}
+      <div style={{ flex: 1, paddingTop: '80px', backgroundColor: 'var(--bg-primary)' }}>
         <Outlet />
       </div>
       <Footer />

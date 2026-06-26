@@ -228,7 +228,7 @@ export default function AdminLogin() {
                     value={forgotEmail} 
                     onChange={(e) => setForgotEmail(e.target.value)} 
                     className="form-input" 
-                    placeholder="admin@thoughtminds.edu" 
+                    placeholder="prarthanaprajith9@gmail.com" 
                   />
                 </div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
