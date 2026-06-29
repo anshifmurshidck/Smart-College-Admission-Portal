@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
 
@@ -66,16 +66,18 @@ export default function Apply() {
   const [applicationId, setApplicationId] = useState('');
   const [agreed, setAgreed] = useState(false);
 
-  const API_BASE = 'http://localhost:5000/api';
-
   useEffect(() => {
-    axios
-      .get(`${API_BASE}/departments`)
-      .then((res) => {
-        setDepartments(res.data);
-        setLoadingDepts(false);
-      })
-      .catch(() => {
+    const fetchDepartments = async () => {
+      try {
+        const { data, error } = await supabase.from('departments').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setDepartments(data);
+        } else {
+          throw new Error('No departments found');
+        }
+      } catch (err) {
+        console.error('Error fetching departments:', err);
         setDepartments([
           { id: 1, name: 'Computer Science Engineering' },
           { id: 2, name: 'Artificial Intelligence & Machine Learning' },
@@ -83,8 +85,12 @@ export default function Apply() {
           { id: 4, name: 'Mechanical Engineering' },
           { id: 5, name: 'Civil Engineering' },
         ]);
+      } finally {
         setLoadingDepts(false);
-      });
+      }
+    };
+    
+    fetchDepartments();
   }, []);
 
   /* ── Input change: clear field error on edit ─────────────────────── */
@@ -205,28 +211,68 @@ export default function Apply() {
     setErrorMsg('');
     setSubmitting(true);
 
-    const uploadData = new FormData();
-    Object.keys(formData).forEach((key) => uploadData.append(key, formData[key]));
-    uploadData.append('marksheet10', files.marksheet10);
-    uploadData.append('marksheet12', files.marksheet12);
-    uploadData.append('idProof', files.idProof);
+    const submitApplication = async () => {
+      try {
+        // 1. Generate unique Application ID
+        const year = new Date().getFullYear();
+        const random = Math.floor(1000 + Math.random() * 9000);
+        const appId = `APP-${year}-${random}`;
 
-    axios
-      .post(`${API_BASE}/admissions/apply`, uploadData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      .then((res) => {
-        setApplicationId(res.data.applicationId);
+        // Helper function for uploading to Supabase Storage
+        const uploadFile = async (file, type) => {
+          const fileExt = file.name.split('.').pop();
+          const filePath = `${appId}/${type}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file);
+          if (uploadError) throw uploadError;
+          
+          const { data } = supabase.storage.from('documents').getPublicUrl(filePath);
+          return data.publicUrl;
+        };
+
+        // 2. Upload Documents
+        const marksheet10Url = await uploadFile(files.marksheet10, 'marksheet10');
+        const marksheet12Url = await uploadFile(files.marksheet12, 'marksheet12');
+        const idProofUrl = await uploadFile(files.idProof, 'idProof');
+
+        // 3. Insert Application Data
+        const { error: appError } = await supabase.from('applications').insert([{
+          id: appId,
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          dob: formData.dob,
+          gender: formData.gender,
+          parent_name: formData.parentName,
+          parent_phone: formData.parentPhone,
+          department_id: parseInt(formData.departmentId),
+          status: 'Pending'
+        }]);
+
+        if (appError) throw appError;
+
+        // 4. Insert Document Records
+        const { error: docsError } = await supabase.from('documents').insert([
+          { application_id: appId, document_type: '10th Marksheet', file_path: marksheet10Url },
+          { application_id: appId, document_type: '12th Marksheet', file_path: marksheet12Url },
+          { application_id: appId, document_type: 'ID Proof', file_path: idProofUrl },
+        ]);
+
+        if (docsError) throw docsError;
+
+        setApplicationId(appId);
         setIsSuccessOpen(true);
-        setSubmitting(false);
-      })
-      .catch((err) => {
-        setErrorMsg(
-          err.response?.data?.message || 'Server connection error. Please try again later.'
-        );
-        setSubmitting(false);
+      } catch (err) {
+        console.error(err);
+        setErrorMsg(err.message || 'Error submitting application to Supabase.');
         window.scrollTo({ top: 150, behavior: 'smooth' });
-      });
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    submitApplication();
   };
 
   /* ─── Render ─────────────────────────────────────────────────────── */
