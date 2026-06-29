@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
 /* ─────────────────────────────────────────────────────────────
    DEPARTMENT DATA — static fallback + enrichment meta
@@ -655,12 +655,18 @@ export default function Departments() {
   const [headingVisible, setHeadingVisible] = useState(false);
   const [cardsVisible, setCardsVisible] = useState(false);
 
-  const API_BASE = 'http://localhost:5000/api';
-
   useEffect(() => {
-    axios.get(`${API_BASE}/departments`)
-      .then((res) => { setDepartments(res.data); setLoading(false); })
-      .catch(() => { setDepartments(STATIC_DEPTS); setLoading(false); });
+    supabase.from('departments').select('*')
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) throw error;
+        setDepartments(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Error fetching departments:', err);
+        setDepartments(STATIC_DEPTS);
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {

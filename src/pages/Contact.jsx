@@ -1,22 +1,35 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, HelpCircle, CheckCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function Contact() {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) return;
     
     setLoading(true);
-    // Simulate inquiry post delay
-    setTimeout(() => {
+    try {
+      const { error } = await supabase.from('inquiries').insert([{
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message
+      }]);
+      
+      if (error) throw error;
+      
       setSubmitted(true);
-      setLoading(false);
       setFormData({ name: '', email: '', subject: '', message: '' });
-    }, 1000);
+    } catch(err) {
+      console.error(err);
+      alert('Failed to send inquiry. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

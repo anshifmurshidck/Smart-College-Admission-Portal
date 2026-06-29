@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { 
   Search, 
   Filter, 
@@ -41,90 +41,153 @@ export default function ApplicationsList() {
   const [comments, setComments] = useState('');
   const [submittingStatus, setSubmittingStatus] = useState(false);
 
-  const API_BASE = 'http://localhost:5000/api';
-  const SERVER_HOST = 'http://localhost:5000'; // For file serving
-
-  const loadApplications = () => {
+  const loadApplications = async () => {
     setLoading(true);
     setErrorMsg('');
-    const token = localStorage.getItem('adminToken');
     
-    axios.get(`${API_BASE}/admin/applications`, {
-      params: {
-        search,
-        status: statusFilter,
-        departmentId: deptFilter
-      },
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setApplications(res.data);
-      setLoading(false);
-    })
-    .catch((err) => {
+    try {
+      let query = supabase
+        .from('applications')
+        .select(`
+          id, 
+          full_name, 
+          email, 
+          status,
+          department:departments(code)
+        `);
+      
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,id.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+      if (deptFilter) {
+        query = query.eq('department_id', deptFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setApplications(data);
+    } catch (err) {
       console.error(err);
       setErrorMsg('Failed to retrieve applications database.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   useEffect(() => {
     loadApplications();
     
-    // Load departments
-    axios.get(`${API_BASE}/departments`)
-      .then(res => setDepartments(res.data))
-      .catch(err => console.error("Error loading departments for filter", err));
+    const loadDepts = async () => {
+      const { data } = await supabase.from('departments').select('*');
+      if (data) setDepartments(data);
+    };
+    loadDepts();
   }, [search, statusFilter, deptFilter]);
 
-  const viewApplicationDetails = (appId) => {
+  const viewApplicationDetails = async (appId) => {
     setSelectedApp(appId);
     setModalLoading(true);
     setModalError('');
     setModalDetails(null);
     setComments('');
     
-    const token = localStorage.getItem('adminToken');
-    
-    axios.get(`${API_BASE}/admin/applications/${appId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setModalDetails(res.data);
-      setNewStatus(res.data.application.status);
-      setModalLoading(false);
-    })
-    .catch((err) => {
+    try {
+      const { data: appData, error: appError } = await supabase
+        .from('applications')
+        .select(`*, department:departments(name, code)`)
+        .eq('id', appId)
+        .single();
+      
+      if (appError) throw appError;
+
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('application_id', appId);
+        
+      if (docsError) throw docsError;
+
+      const { data: timelineData, error: timelineError } = await supabase
+        .from('status_history')
+        .select('*')
+        .eq('application_id', appId)
+        .order('updated_at', { ascending: true });
+
+      if (timelineError) throw timelineError;
+
+      let timeline = timelineData || [];
+      if (timeline.length === 0) {
+        timeline = [{
+          status: appData.status,
+          updated_at: appData.created_at,
+          comments: appData.status === 'Pending' ? 'Application successfully submitted.' : 'Application status updated.',
+          updater_name: 'System Auto'
+        }];
+      }
+
+      const formattedDetails = {
+        application: {
+          ...appData,
+          department_code: appData.department.code,
+          department_name: appData.department.name
+        },
+        documents: docsData || [],
+        timeline: timeline
+      };
+
+      setModalDetails(formattedDetails);
+      setNewStatus(appData.status);
+    } catch (err) {
       console.error(err);
       setModalError('Failed to retrieve application file details.');
+    } finally {
       setModalLoading(false);
-    });
+    }
   };
 
-  const handleStatusSubmit = (e) => {
+  const handleStatusSubmit = async (e) => {
     e.preventDefault();
     if (!newStatus) return;
 
     setSubmittingStatus(true);
-    const token = localStorage.getItem('adminToken');
 
-    axios.post(`${API_BASE}/admin/applications/${selectedApp}/status`, {
-      status: newStatus,
-      comments: comments
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setSubmittingStatus(false);
-      // Reload lists and refresh modal view
+    try {
+      let studentId = modalDetails.application.assigned_student_id;
+
+      if (newStatus === 'Approved' && !studentId) {
+        const year = new Date().getFullYear();
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        studentId = `STU-${year}-${rand}`;
+      }
+
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', selectedApp);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: selectedApp,
+          status: newStatus,
+          comments: comments || `Status changed to ${newStatus}`
+        }]);
+
+      if (logError) throw logError;
+
       loadApplications();
       viewApplicationDetails(selectedApp);
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Error updating status');
+      alert(err.message || 'Error updating status');
+    } finally {
       setSubmittingStatus(false);
-    });
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -245,7 +308,7 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>{app.id}</td>
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
-                  <td style={{ padding: '16px' }}>{app.department_code}</td>
+                  <td style={{ padding: '16px' }}>{app.department?.code || '-'}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
                     <button 
@@ -381,7 +444,7 @@ export default function ApplicationsList() {
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
                     {modalDetails.documents.map((doc) => {
-                      const fileUrl = `${SERVER_HOST}/${doc.file_path}`;
+                      const fileUrl = doc.file_path;
                       const isImage = doc.file_path.match(/\.(png|jpg|jpeg)$/i);
                       
                       return (

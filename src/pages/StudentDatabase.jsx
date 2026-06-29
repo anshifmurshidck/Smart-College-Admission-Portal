@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import {
   Search, Plus, Edit2, Trash2, Download, User, AlertCircle,
   X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle
@@ -34,28 +34,49 @@ export default function StudentDatabase() {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const API_BASE = 'http://localhost:5000/api';
-  const token = () => localStorage.getItem('adminToken');
-  const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
-
-  const loadStudents = () => {
+  const loadStudents = async () => {
     setLoading(true);
     setErrorMsg('');
-    axios.get(`${API_BASE}/admin/students`, {
-      params: { search, departmentId: deptFilter },
-      headers: authHeaders()
-    }).then(res => {
-      setStudents(res.data);
+    try {
+      let query = supabase.from('applications').select('*, department:departments(code, name)').eq('status', 'Approved');
+      
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,assigned_student_id.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+      if (deptFilter) {
+        query = query.eq('department_id', deptFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      const formatted = data.map(app => ({
+        id: app.assigned_student_id || `TMP-${app.id}`,
+        application_id: app.id,
+        full_name: app.full_name,
+        email: app.email,
+        phone: app.phone,
+        dob: app.dob,
+        gender: app.gender,
+        department_id: app.department_id,
+        department_code: app.department?.code,
+        department_name: app.department?.name,
+        enroll_date: app.updated_at
+      }));
+      setStudents(formatted);
       setPage(1);
-      setLoading(false);
-    }).catch(err => {
+    } catch (err) {
       setErrorMsg('Failed to load student database.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
-  const loadDepartments = () => {
-    axios.get(`${API_BASE}/departments`).then(res => setDepartments(res.data)).catch(() => {});
+  const loadDepartments = async () => {
+    try {
+      const { data } = await supabase.from('departments').select('*');
+      if (data) setDepartments(data);
+    } catch(e) {}
   };
 
   useEffect(() => {
@@ -63,68 +84,113 @@ export default function StudentDatabase() {
     loadDepartments();
   }, [search, deptFilter]);
 
-  const viewStudent = (studentId) => {
+  const viewStudent = async (studentId) => {
     setSelectedStudent(studentId);
     setEditMode(false);
     setDetailsLoading(true);
     setStudentDetails(null);
-    axios.get(`${API_BASE}/admin/students/${studentId}`, { headers: authHeaders() })
-      .then(res => {
-        setStudentDetails(res.data);
-        setEditForm({
-          full_name: res.data.student.full_name,
-          email: res.data.student.email,
-          phone: res.data.student.phone,
-          dob: res.data.student.dob,
-          gender: res.data.student.gender,
-          department_id: res.data.student.department_id
-        });
-        setDetailsLoading(false);
-      })
-      .catch(() => setDetailsLoading(false));
+    
+    try {
+      const appIdMatch = studentId.replace('TMP-', '');
+      const { data, error } = await supabase.from('applications')
+        .select('*, department:departments(code, name)')
+        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`)
+        .single();
+        
+      if (error) throw error;
+      
+      setStudentDetails({ student: {
+        ...data,
+        department_name: data.department?.name
+      }});
+      setEditForm({
+        full_name: data.full_name,
+        email: data.email,
+        phone: data.phone,
+        dob: data.dob,
+        gender: data.gender,
+        department_id: data.department_id
+      });
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
-    axios.put(`${API_BASE}/admin/students/${selectedStudent}`, editForm, { headers: authHeaders() })
-      .then(() => {
-        loadStudents();
-        viewStudent(selectedStudent);
-        setEditMode(false);
-      })
-      .catch(err => alert(err.response?.data?.message || 'Edit failed'));
+    try {
+      const appIdMatch = selectedStudent.replace('TMP-', '');
+      const { error } = await supabase.from('applications')
+        .update(editForm)
+        .or(`assigned_student_id.eq.${selectedStudent},id.eq.${appIdMatch}`);
+      
+      if (error) throw error;
+      loadStudents();
+      viewStudent(selectedStudent);
+      setEditMode(false);
+    } catch(err) {
+      alert(err.message || 'Edit failed');
+    }
   };
 
-  const handleDelete = (studentId) => {
-    axios.delete(`${API_BASE}/admin/students/${studentId}`, { headers: authHeaders() })
-      .then(() => {
-        setDeleteTarget(null);
-        setSelectedStudent(null);
-        loadStudents();
-      })
-      .catch(err => alert(err.response?.data?.message || 'Delete failed'));
+  const handleDelete = async (studentId) => {
+    try {
+      const appIdMatch = studentId.replace('TMP-', '');
+      const { error } = await supabase.from('applications')
+        .update({ status: 'Pending', assigned_student_id: null })
+        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`);
+      
+      if (error) throw error;
+      setDeleteTarget(null);
+      setSelectedStudent(null);
+      loadStudents();
+    } catch(err) {
+      alert(err.message || 'Delete failed');
+    }
   };
 
-  const handleAddStudent = (e) => {
+  const handleAddStudent = async (e) => {
     e.preventDefault();
     setAddLoading(true);
     setAddSuccess('');
-    axios.post(`${API_BASE}/admin/students/add`, addForm, { headers: authHeaders() })
-      .then(res => {
-        setAddSuccess(`Student registered! ID: ${res.data.studentId}`);
-        setAddLoading(false);
-        loadStudents();
-        setAddForm({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
-      })
-      .catch(err => {
-        alert(err.response?.data?.message || 'Failed to add student');
-        setAddLoading(false);
-      });
+    
+    try {
+      const year = new Date().getFullYear();
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      const studentId = `STU-${year}-${rand}`;
+      const appId = `APP-${year}-${rand}`;
+      
+      const { error } = await supabase.from('applications').insert([{
+        id: appId,
+        full_name: addForm.fullName,
+        email: addForm.email,
+        phone: addForm.phone,
+        dob: addForm.dob,
+        gender: addForm.gender,
+        department_id: addForm.departmentId,
+        address: addForm.address,
+        status: 'Approved',
+        assigned_student_id: studentId,
+        parent_name: 'N/A',
+        parent_phone: 'N/A'
+      }]);
+      
+      if (error) throw error;
+      
+      setAddSuccess(`Student registered! ID: ${studentId}`);
+      setAddForm({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
+      loadStudents();
+    } catch(err) {
+      alert(err.message || 'Failed to add student');
+    } finally {
+      setAddLoading(false);
+    }
   };
 
   const handleCSVExport = () => {
-    const token_val = token();
-    window.open(`${API_BASE}/admin/students?export=csv`, '_blank');
+    alert("CSV Export is disabled in mock mode.");
   };
 
   // Pagination

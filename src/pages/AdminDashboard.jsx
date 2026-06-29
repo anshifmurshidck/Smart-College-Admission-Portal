@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { 
   FileText, 
   UserCheck, 
@@ -18,25 +18,61 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const API_BASE = 'http://localhost:5000/api';
-
-  const loadDashboardData = () => {
+  const loadDashboardData = async () => {
     setLoading(true);
     setErrorMsg('');
-    const token = localStorage.getItem('adminToken');
     
-    axios.get(`${API_BASE}/admin/dashboard-stats`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setStats(res.data);
-      setLoading(false);
-    })
-    .catch((err) => {
+    try {
+      const { data: apps, error } = await supabase
+        .from('applications')
+        .select('*, department:departments(code, name)');
+        
+      if (error) throw error;
+      
+      const total = apps.length;
+      const approved = apps.filter(a => a.status === 'Approved').length;
+      const rejected = apps.filter(a => a.status === 'Rejected').length;
+      const pending = apps.filter(a => a.status === 'Pending').length;
+
+      const deptMap = {};
+      apps.forEach(a => {
+        const code = a.department?.code || 'Unknown';
+        const name = a.department?.name || 'Unknown';
+        if (!deptMap[code]) deptMap[code] = { code, name, count: 0 };
+        deptMap[code].count++;
+      });
+      const departments = Object.values(deptMap);
+
+      const monthlyMap = {};
+      apps.filter(a => a.status === 'Approved').forEach(a => {
+        const date = new Date(a.updated_at);
+        const month = date.toLocaleString('default', { month: 'short' });
+        if (!monthlyMap[month]) monthlyMap[month] = { month, count: 0, _date: date };
+        monthlyMap[month].count++;
+      });
+      const monthly = Object.values(monthlyMap).sort((a,b) => a._date - b._date).slice(-6);
+
+      const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5).map(a => ({
+        id: a.id,
+        full_name: a.full_name,
+        department_code: a.department?.code,
+        status: a.status,
+        created_at: a.created_at
+      }));
+
+      setStats({
+        cards: { total, approved, rejected, pending },
+        departments,
+        monthly,
+        activity
+      });
+      
+    } catch (err) {
       console.error(err);
-      setErrorMsg('Failed to load dashboard metrics. Re-authenticate or try again.');
+      setErrorMsg('Failed to load dashboard metrics. Try refreshing the page.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   useEffect(() => {

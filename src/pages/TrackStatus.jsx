@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { Search, Loader2, AlertCircle, FileText, Calendar, CheckCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import bgImage from '../assets/track_bg.jpg';
 
@@ -10,8 +10,6 @@ export default function TrackStatus() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [data, setData] = useState(null);
-
-  const API_BASE = 'http://localhost:5000/api';
 
   useEffect(() => {
     // If ID is in query string, trigger track automatically
@@ -31,21 +29,66 @@ export default function TrackStatus() {
     trackApplication(appId.trim());
   };
 
-  const trackApplication = (id) => {
+  const trackApplication = async (id) => {
     setLoading(true);
     setErrorMsg('');
     setData(null);
 
-    axios.get(`${API_BASE}/admissions/track/${id}`)
-      .then((res) => {
-        setData(res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setErrorMsg(err.response?.data?.message || 'Failed to locate application. Verify the ID and try again.');
-        setLoading(false);
+    try {
+      // Fetch application with department details
+      const { data: appData, error: appError } = await supabase
+        .from('applications')
+        .select(`
+          full_name,
+          status,
+          assigned_student_id,
+          created_at,
+          department:departments(name, code)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (appError || !appData) {
+        throw new Error('Failed to locate application. Verify the ID and try again.');
+      }
+
+      // Fetch status history
+      const { data: historyData, error: historyError } = await supabase
+        .from('status_history')
+        .select('*')
+        .eq('application_id', id)
+        .order('updated_at', { ascending: true });
+
+      let timeline = [];
+      if (historyData && historyData.length > 0) {
+        timeline = historyData;
+      } else {
+        // Provide a default timeline entry if history is empty
+        timeline = [{
+          status: appData.status,
+          updated_at: appData.created_at,
+          comments: appData.status === 'Pending' 
+            ? 'Application successfully submitted and is awaiting review.'
+            : 'Application status updated.'
+        }];
+      }
+
+      setData({
+        application: {
+          fullName: appData.full_name,
+          departmentCode: appData.department.code,
+          departmentName: appData.department.name,
+          status: appData.status,
+          studentId: appData.assigned_student_id
+        },
+        timeline: timeline
       });
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to locate application. Verify the ID and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusDetails = (status) => {
