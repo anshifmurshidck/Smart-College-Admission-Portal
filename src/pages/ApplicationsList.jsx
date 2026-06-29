@@ -15,7 +15,9 @@ import {
   Check, 
   X,
   FileCheck,
-  Award
+  Award,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -23,6 +25,8 @@ export default function ApplicationsList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
   
   // Search & Filter state
   const [search, setSearch] = useState('');
@@ -85,6 +89,7 @@ export default function ApplicationsList() {
       if (data) setDepartments(data);
     };
     loadDepts();
+    setPage(1);
   }, [search, statusFilter, deptFilter]);
 
   const viewApplicationDetails = async (appId) => {
@@ -216,6 +221,9 @@ export default function ApplicationsList() {
     );
   };
 
+  const totalPages = Math.max(1, Math.ceil(applications.length / PAGE_SIZE));
+  const paginatedApplications = applications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
       
@@ -284,7 +292,8 @@ export default function ApplicationsList() {
             <p style={{ fontSize: '16px', fontWeight: '500' }}>No applications match active filter criteria.</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600' }}>
                 <th style={{ padding: '12px 16px' }}>App ID</th>
@@ -296,7 +305,7 @@ export default function ApplicationsList() {
               </tr>
             </thead>
             <tbody>
-              {applications.map((app) => (
+              {paginatedApplications.map((app) => (
                 <tr 
                   key={app.id} 
                   style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
@@ -323,6 +332,20 @@ export default function ApplicationsList() {
               ))}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <span>Page {page} of {totalPages} — {applications.length} records</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+          </>
         )}
       </div>
 
@@ -409,6 +432,18 @@ export default function ApplicationsList() {
                       <MapPin size={15} style={{ color: 'var(--text-muted)' }} />
                       <span>Address: {modalDetails.application.address}</span>
                     </div>
+                    {modalDetails.application.state && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '600' }}>State:</span>
+                        <span>{modalDetails.application.state}</span>
+                      </div>
+                    )}
+                    {modalDetails.application.aadhaar_number && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '600' }}>Aadhaar:</span>
+                        <span>{modalDetails.application.aadhaar_number}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -422,6 +457,19 @@ export default function ApplicationsList() {
                     <div>Phone: {modalDetails.application.parent_phone}</div>
                   </div>
                 </div>
+
+                {/* Academic Background */}
+                {(modalDetails.application.tenth_percentage !== undefined && modalDetails.application.tenth_percentage !== null) && (
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '16px' }}>
+                      Academic Background
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13px' }}>
+                      <div>10th Percentage: <strong>{modalDetails.application.tenth_percentage}%</strong></div>
+                      <div>12th Percentage: <strong>{modalDetails.application.twelfth_percentage}%</strong></div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Applied Course info */}
                 <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', padding: '16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-primary)' }}>

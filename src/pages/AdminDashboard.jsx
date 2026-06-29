@@ -9,7 +9,9 @@ import {
   TrendingUp, 
   Clock, 
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { CardSkeleton, ChartSkeleton } from '../components/LoadingSkeleton';
 
@@ -17,6 +19,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [activityPage, setActivityPage] = useState(1);
+  const ACTIVITY_PAGE_SIZE = 15;
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -52,7 +56,7 @@ export default function AdminDashboard() {
       });
       const monthly = Object.values(monthlyMap).sort((a,b) => a._date - b._date).slice(-6);
 
-      const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5).map(a => ({
+      const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(a => ({
         id: a.id,
         full_name: a.full_name,
         department_code: a.department?.code,
@@ -66,6 +70,7 @@ export default function AdminDashboard() {
         monthly,
         activity
       });
+      setActivityPage(1);
       
     } catch (err) {
       console.error(err);
@@ -115,6 +120,9 @@ export default function AdminDashboard() {
   // Max value for scaling SVG chart heights
   const maxAppsCount = Math.max(...stats.departments.map(d => d.count), 1);
   const maxMonthlyCount = Math.max(...stats.monthly.map(m => m.count), 1);
+
+  const totalActivityPages = Math.max(1, Math.ceil((stats?.activity?.length || 0) / ACTIVITY_PAGE_SIZE));
+  const paginatedActivity = (stats?.activity || []).slice((activityPage - 1) * ACTIVITY_PAGE_SIZE, activityPage * ACTIVITY_PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -257,14 +265,14 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {stats.activity.length === 0 ? (
+              {paginatedActivity.length === 0 ? (
                 <tr>
                   <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No applications submitted yet.
                   </td>
                 </tr>
               ) : (
-                stats.activity.map((act) => {
+                paginatedActivity.map((act) => {
                   let statusColor = '#475569';
                   let statusBg = 'rgba(71,85,105,0.08)';
                   
@@ -309,6 +317,19 @@ export default function AdminDashboard() {
               )}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <span>Page {activityPage} of {totalActivityPages} — {stats.activity.length} records</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: activityPage === 1 ? 0.4 : 1, cursor: activityPage === 1 ? 'not-allowed' : 'pointer' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: activityPage === totalActivityPages ? 0.4 : 1, cursor: activityPage === totalActivityPages ? 'not-allowed' : 'pointer' }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

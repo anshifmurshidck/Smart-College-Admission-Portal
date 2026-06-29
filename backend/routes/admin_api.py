@@ -332,6 +332,10 @@ def handle_student(current_user, student_id):
             dob = data.get('dob')
             gender = data.get('gender')
             dept_id = data.get('department_id')
+            aadhaar_number = data.get('aadhaar_number')
+            state = data.get('state')
+            tenth_percentage = data.get('tenth_percentage')
+            twelfth_percentage = data.get('twelfth_percentage')
 
             if not all([full_name, email, phone, dob, gender, dept_id]):
                 return jsonify({'message': 'All profile fields are required'}), 400
@@ -352,9 +356,10 @@ def handle_student(current_user, student_id):
             # Keep application details in sync
             db.execute_write(
                 """UPDATE applications 
-                   SET full_name = %s, email = %s, phone = %s, dob = %s, gender = %s, department_id = %s 
+                   SET full_name = %s, email = %s, phone = %s, dob = %s, gender = %s, department_id = %s,
+                       aadhaar_number = %s, state = %s, tenth_percentage = %s, twelfth_percentage = %s
                    WHERE id = %s""",
-                (full_name, email, phone, dob, gender, int(dept_id), student['application_id'])
+                (full_name, email, phone, dob, gender, int(dept_id), aadhaar_number, state, tenth_percentage, twelfth_percentage, student['application_id'])
             )
 
             return jsonify({'message': 'Student profile updated successfully'}), 200

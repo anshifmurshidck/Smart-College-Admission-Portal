@@ -36,15 +36,31 @@ def apply():
         parent_name = request.form.get('parentName')
         parent_phone = request.form.get('parentPhone')
         department_id = request.form.get('departmentId')
+        aadhaar_number = request.form.get('aadhaarNumber')
+        state = request.form.get('state')
+        tenth_percentage = request.form.get('tenthPercentage')
+        twelfth_percentage = request.form.get('twelfthPercentage')
 
         # Basic validations
-        if not all([full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id]):
+        if not all([full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage]):
             return jsonify({'message': 'All form fields are required'}), 400
 
         try:
             department_id = int(department_id)
         except ValueError:
             return jsonify({'message': 'Invalid department selection'}), 400
+
+        # Validate Aadhaar and Percentages
+        if not aadhaar_number.isdigit() or len(aadhaar_number) != 12:
+            return jsonify({'message': 'Aadhaar Number must be exactly 12 digits'}), 400
+
+        try:
+            tenth_percentage = float(tenth_percentage)
+            twelfth_percentage = float(twelfth_percentage)
+            if not (0 <= tenth_percentage <= 100) or not (0 <= twelfth_percentage <= 100):
+                raise ValueError()
+        except ValueError:
+            return jsonify({'message': 'Academic percentages must be valid numbers between 0 and 100'}), 400
 
         # Validate file uploads
         files = {}
@@ -98,9 +114,9 @@ def apply():
         # Insert Application to database
         db.execute_write(
             """INSERT INTO applications 
-            (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, status) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')""",
-            (app_id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id)
+            (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, status) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')""",
+            (app_id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage)
         )
 
         # Insert Documents
@@ -158,7 +174,11 @@ def track_status(app_id):
                 'departmentName': application['department_name'],
                 'departmentCode': application['department_code'],
                 'studentId': application['assigned_student_id'],
-                'createdAt': application['created_at']
+                'createdAt': application['created_at'],
+                'aadhaarNumber': application.get('aadhaar_number'),
+                'state': application.get('state'),
+                'tenthPercentage': float(application['tenth_percentage']) if application.get('tenth_percentage') is not None else None,
+                'twelfthPercentage': float(application['twelfth_percentage']) if application.get('twelfth_percentage') is not None else None
             },
             'timeline': history
         }), 200

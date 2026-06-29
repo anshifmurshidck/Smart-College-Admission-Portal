@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS applications (
     parent_name VARCHAR(100) NOT NULL,
     parent_phone VARCHAR(20) NOT NULL,
     department_id INT NOT NULL,
+    aadhaar_number VARCHAR(12) DEFAULT NULL,
+    state VARCHAR(100) DEFAULT NULL,
+    tenth_percentage DECIMAL(5,2) DEFAULT NULL,
+    twelfth_percentage DECIMAL(5,2) DEFAULT NULL,
     status VARCHAR(30) DEFAULT 'Pending', -- 'Pending', 'Under Verification', 'Approved', 'Rejected'
     assigned_student_id VARCHAR(20) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Search, Plus, Edit2, Trash2, Download, User, AlertCircle,
-  X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle
+  X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle,
+  MapPin, Hash, Award
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -14,7 +15,7 @@ export default function StudentDatabase() {
   const [deptFilter, setDeptFilter] = useState('');
   const [departments, setDepartments] = useState([]);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 15;
 
   // Selected student modal
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -109,7 +110,11 @@ export default function StudentDatabase() {
         phone: data.phone,
         dob: data.dob,
         gender: data.gender,
-        department_id: data.department_id
+        department_id: data.department_id,
+        aadhaar_number: data.aadhaar_number,
+        state: data.state,
+        tenth_percentage: data.tenth_percentage,
+        twelfth_percentage: data.twelfth_percentage
       });
     } catch(err) {
       console.error(err);
@@ -122,8 +127,13 @@ export default function StudentDatabase() {
     e.preventDefault();
     try {
       const appIdMatch = selectedStudent.replace('TMP-', '');
+      const updatedForm = {
+        ...editForm,
+        tenth_percentage: editForm.tenth_percentage ? parseFloat(editForm.tenth_percentage) : null,
+        twelfth_percentage: editForm.twelfth_percentage ? parseFloat(editForm.twelfth_percentage) : null
+      };
       const { error } = await supabase.from('applications')
-        .update(editForm)
+        .update(updatedForm)
         .or(`assigned_student_id.eq.${selectedStudent},id.eq.${appIdMatch}`);
       
       if (error) throw error;
@@ -288,19 +298,17 @@ export default function StudentDatabase() {
               </table>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  <span>Page {page} of {totalPages} — {students.length} records</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1 }}>
-                      <ChevronLeft size={14} />
-                    </button>
-                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1 }}>
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <span>Page {page} of {totalPages} — {students.length} records</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
-              )}
+              </div>
             </>
           )
         }
@@ -333,10 +341,14 @@ export default function StudentDatabase() {
                     { label: 'Email', key: 'email', type: 'email' },
                     { label: 'Phone', key: 'phone', type: 'tel' },
                     { label: 'Date of Birth', key: 'dob', type: 'date' },
+                    { label: 'Aadhaar Number', key: 'aadhaar_number', type: 'text' },
+                    { label: 'State', key: 'state', type: 'text' },
+                    { label: '10th Percentage (%)', key: 'tenth_percentage', type: 'number' },
+                    { label: '12th Percentage (%)', key: 'twelfth_percentage', type: 'number' },
                   ].map(f => (
                     <div key={f.key} className="form-group">
                       <label className="form-label">{f.label}</label>
-                      <input type={f.type} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" />
+                      <input type={f.type} step={f.type === 'number' ? '0.01' : undefined} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" />
                     </div>
                   ))}
                   <div className="form-group">
@@ -367,6 +379,10 @@ export default function StudentDatabase() {
                     { icon: Calendar, label: 'Date of Birth', val: String(studentDetails.student.dob).substring(0, 10) },
                     { icon: User, label: 'Gender', val: studentDetails.student.gender },
                     { icon: GraduationCap, label: 'Department', val: studentDetails.student.department_name },
+                    { icon: MapPin, label: 'State', val: studentDetails.student.state || 'N/A' },
+                    { icon: Hash, label: 'Aadhaar Number', val: studentDetails.student.aadhaar_number || 'N/A' },
+                    { icon: Award, label: '10th Percentage', val: studentDetails.student.tenth_percentage ? `${studentDetails.student.tenth_percentage}%` : 'N/A' },
+                    { icon: Award, label: '12th Percentage', val: studentDetails.student.twelfth_percentage ? `${studentDetails.student.twelfth_percentage}%` : 'N/A' },
                   ].map((item, idx) => {
                     const Icon = item.icon;
                     return (

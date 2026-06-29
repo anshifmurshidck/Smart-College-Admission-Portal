@@ -42,6 +42,10 @@ export default function Apply() {
     parentName: '',
     parentPhone: '',
     departmentId: '',
+    aadhaarNumber: '',
+    state: '',
+    tenthPercentage: '',
+    twelfthPercentage: '',
   });
 
   /* per-field error map */
@@ -179,6 +183,34 @@ export default function Apply() {
     if (!formData.dob) errs.dob = 'Date of Birth is required';
     if (!formData.gender) errs.gender = 'Gender is required';
 
+    if (!formData.aadhaarNumber.trim()) {
+      errs.aadhaarNumber = 'Aadhaar Number is required';
+    } else if (!/^\d{12}$/.test(formData.aadhaarNumber)) {
+      errs.aadhaarNumber = 'Aadhaar Number must be exactly 12 digits';
+    }
+
+    if (!formData.state.trim()) {
+      errs.state = 'State is required';
+    }
+
+    if (!formData.tenthPercentage.trim()) {
+      errs.tenthPercentage = '10th Percentage is required';
+    } else {
+      const val = parseFloat(formData.tenthPercentage);
+      if (isNaN(val) || val < 0 || val > 100) {
+        errs.tenthPercentage = 'Percentage must be between 0 and 100';
+      }
+    }
+
+    if (!formData.twelfthPercentage.trim()) {
+      errs.twelfthPercentage = '12th Percentage is required';
+    } else {
+      const val = parseFloat(formData.twelfthPercentage);
+      if (isNaN(val) || val < 0 || val > 100) {
+        errs.twelfthPercentage = 'Percentage must be between 0 and 100';
+      }
+    }
+
     if (!formData.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
     else if (/\d/.test(formData.parentName)) errs.parentName = 'Name must not contain numbers';
 
@@ -247,6 +279,10 @@ export default function Apply() {
           parent_name: formData.parentName,
           parent_phone: formData.parentPhone,
           department_id: parseInt(formData.departmentId),
+          aadhaar_number: formData.aadhaarNumber,
+          state: formData.state,
+          tenth_percentage: parseFloat(formData.tenthPercentage),
+          twelfth_percentage: parseFloat(formData.twelfthPercentage),
           status: 'Pending'
         }]);
 
@@ -440,11 +476,62 @@ export default function Apply() {
                   onChange={handleInputChange}
                   rows="3"
                   className="form-textarea"
-                  placeholder="Street Address, City, State, ZIP Code"
+                  placeholder="Street Address, City, ZIP Code"
                   style={inputStyle(fieldErrors.address)}
                 />
                 <FieldError msg={fieldErrors.address} />
               </div>
+
+              {/* State of Residence & Aadhaar Number */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+                <div className="form-group">
+                  <label className="form-label">
+                    State of Residence <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select
+                    name="state"
+                    value={formData.state}
+                    onChange={handleInputChange}
+                    className="form-select"
+                    style={inputStyle(fieldErrors.state)}
+                  >
+                    <option value="">Select State</option>
+                    {[
+                      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa',
+                      'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala',
+                      'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland',
+                      'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+                      'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands',
+                      'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
+                      'Ladakh', 'Lakshadweep', 'Puducherry'
+                    ].map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                  <FieldError msg={fieldErrors.state} />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Aadhaar Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="aadhaarNumber"
+                    value={formData.aadhaarNumber}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      const ctrl = e.ctrlKey || e.metaKey;
+                      if (ctrl || ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                      if (!/\d/.test(e.key)) e.preventDefault();
+                    }}
+                    className="form-input"
+                    placeholder="12-digit Aadhaar Number"
+                    maxLength={12}
+                    style={inputStyle(fieldErrors.aadhaarNumber)}
+                  />
+                  <FieldError msg={fieldErrors.aadhaarNumber} />
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -499,7 +586,7 @@ export default function Apply() {
             </div>
           </div>
 
-          {/* ── Section 3: Department Preference ────────────────────── */}
+          {/* ── Section 3: Academic Background ────────────────────────── */}
           <div>
             <h3
               style={{
@@ -509,7 +596,61 @@ export default function Apply() {
                 display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
-              <span style={{ color: 'var(--color-royal)' }}>03.</span> Department Preference
+              <span style={{ color: 'var(--color-royal)' }}>03.</span> Academic Background
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              
+              {/* 10th Percentage */}
+              <div className="form-group">
+                <label className="form-label">
+                  10th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="tenthPercentage"
+                  value={formData.tenthPercentage}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  placeholder="e.g. 92.50"
+                  style={inputStyle(fieldErrors.tenthPercentage)}
+                />
+                <FieldError msg={fieldErrors.tenthPercentage} />
+              </div>
+
+              {/* 12th Percentage */}
+              <div className="form-group">
+                <label className="form-label">
+                  12th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="twelfthPercentage"
+                  value={formData.twelfthPercentage}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  placeholder="e.g. 88.40"
+                  style={inputStyle(fieldErrors.twelfthPercentage)}
+                />
+                <FieldError msg={fieldErrors.twelfthPercentage} />
+              </div>
+
+            </div>
+          </div>
+
+          {/* ── Section 4: Department Preference ────────────────────── */}
+          <div>
+            <h3
+              style={{
+                fontSize: '18px', fontWeight: '700',
+                borderBottom: '2px solid var(--border-color)',
+                paddingBottom: '8px', marginBottom: '20px',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}
+            >
+              <span style={{ color: 'var(--color-royal)' }}>04.</span> Department Preference
             </h3>
 
             <div className="form-group">
@@ -536,7 +677,7 @@ export default function Apply() {
             </div>
           </div>
 
-          {/* ── Section 4: Document Uploads ──────────────────────────── */}
+          {/* ── Section 5: Document Uploads ──────────────────────────── */}
           <div>
             <h3
               style={{
@@ -546,7 +687,7 @@ export default function Apply() {
                 display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
-              <span style={{ color: 'var(--color-royal)' }}>04.</span> Upload Documents
+              <span style={{ color: 'var(--color-royal)' }}>05.</span> Upload Documents
             </h3>
 
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
