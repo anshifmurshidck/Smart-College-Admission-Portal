@@ -64,6 +64,7 @@ export default function Apply() {
   const [submitting, setSubmitting] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [applicationId, setApplicationId] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   const API_BASE = 'http://localhost:5000/api';
 
@@ -183,6 +184,7 @@ export default function Apply() {
     if (!files.marksheet10) errs.marksheet10 = '10th Marksheet is required';
     if (!files.marksheet12) errs.marksheet12 = '12th Marksheet is required';
     if (!files.idProof) errs.idProof = 'Government ID Proof is required';
+    if (!agreed) errs.agreed = 'You must assure the details are correct to submit';
 
     return errs;
   };
@@ -603,6 +605,25 @@ export default function Apply() {
           </div>
 
           <hr style={{ borderColor: 'var(--border-color)', margin: '10px 0' }} />
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <input 
+              type="checkbox" 
+              id="assurance" 
+              checked={agreed} 
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                if (fieldErrors.agreed) setFieldErrors(prev => ({ ...prev, agreed: '' }));
+              }}
+              style={{ marginTop: '4px', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label htmlFor="assurance" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                i hereby assure the above details is correct and accurate
+              </label>
+              <FieldError msg={fieldErrors.agreed} />
+            </div>
+          </div>
 
           <button
             type="submit"
