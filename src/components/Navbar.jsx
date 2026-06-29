@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Menu, X, GraduationCap } from 'lucide-react';
+import { Sun, Moon, Menu, X } from 'lucide-react';
 
 export default function Navbar() {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
@@ -56,16 +56,16 @@ export default function Navbar() {
 
         {/* ── Logo ── */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', textDecoration: 'none' }}>
-          <div style={{
-            background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
-            padding: '9px',
-            borderRadius: '12px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'var(--glow-royal)',
-            animation: 'float-fast 4s ease-in-out infinite',
-          }}>
-            <GraduationCap size={20} color="white" />
-          </div>
+          <img 
+            src="/logo_sphere.png" 
+            alt="TMEC Logo" 
+            style={{ 
+              height: '38px', 
+              width: 'auto',
+              filter: 'drop-shadow(var(--glow-royal))',
+              animation: 'float-fast 4s ease-in-out infinite'
+            }} 
+          />
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <span style={{
               fontWeight: 900, fontSize: '18px', letterSpacing: '0.5px',

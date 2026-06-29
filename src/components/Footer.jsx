@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, GraduationCap } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -18,17 +18,16 @@ export default function Footer() {
         
         {/* About College */}
         <div>
-          <div style={{ display: 'flex', itemsCenter: 'center', gap: '10px', marginBottom: '20px' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
-              padding: '6px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <GraduationCap size={20} color="white" />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <img 
+              src="/logo_sphere.png" 
+              alt="TMEC Logo" 
+              style={{ 
+                height: '32px', 
+                width: 'auto',
+                filter: 'drop-shadow(var(--glow-royal))'
+              }} 
+            />
             <span style={{ fontSize: '18px', fontWeight: '700', letterSpacing: '1px', fontFamily: 'var(--font-display)' }}>TMEC</span>
           </div>
           <p style={{ color: 'rgba(255,255,255,0.7)', lineHeight: '1.6', marginBottom: '20px' }}>

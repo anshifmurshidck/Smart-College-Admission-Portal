@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Lock, User, AlertCircle, GraduationCap } from 'lucide-react';
+import { Lock, User, AlertCircle } from 'lucide-react';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -80,19 +80,16 @@ export default function AdminLogin() {
       >
         {/* Academic Logo Header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
-            padding: '10px',
-            borderRadius: '10px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            marginBottom: '16px',
-            boxShadow: '0 4px 15px rgba(37,99,235,0.2)'
-          }}>
-            <GraduationCap size={28} />
-          </div>
+          <img 
+            src="/logo_sphere.png" 
+            alt="TMEC Logo" 
+            style={{ 
+              height: '48px', 
+              width: 'auto',
+              marginBottom: '16px',
+              filter: 'drop-shadow(var(--glow-royal))'
+            }} 
+          />
           <h3 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-secondary)' }}>Thought Minds College</h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>Registrar Administration Portal</p>
         </div>

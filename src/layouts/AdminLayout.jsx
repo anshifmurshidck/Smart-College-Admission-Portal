@@ -10,7 +10,6 @@ import {
   LogOut, 
   Menu, 
   X, 
-  GraduationCap, 
   UserCircle 
 } from 'lucide-react';
 
@@ -65,16 +64,15 @@ export default function AdminLayout() {
         {/* Header */}
         <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'center', justify: collapsed ? 'center' : 'between', gap: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
-              padding: '6px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <GraduationCap size={20} color="white" />
-            </div>
+            <img 
+              src="/logo_sphere.png" 
+              alt="TMEC Logo" 
+              style={{ 
+                height: '32px', 
+                width: 'auto',
+                filter: 'drop-shadow(var(--glow-royal))'
+              }} 
+            />
             {!collapsed && (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: '700', fontSize: '15px', fontFamily: 'var(--font-display)' }}>TMEC ADMIN</span>
