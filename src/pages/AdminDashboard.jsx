@@ -59,7 +59,7 @@ export default function AdminDashboard() {
       const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(a => ({
         id: a.id,
         full_name: a.full_name,
-        department_code: a.department?.code,
+        department_name: a.department?.name,
         status: a.status,
         created_at: a.created_at
       }));
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
                         <Link to={`/admin/applications?search=${act.id}`}>{act.id}</Link>
                       </td>
                       <td style={{ padding: '16px', fontWeight: '600' }}>{act.full_name}</td>
-                      <td style={{ padding: '16px' }}>{act.department_code}</td>
+                      <td style={{ padding: '16px' }}>{act.department_name}</td>
                       <td style={{ padding: '16px' }}>
                         <span style={{ 
                           padding: '4px 10px', 

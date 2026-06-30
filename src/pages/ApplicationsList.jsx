@@ -44,6 +44,7 @@ export default function ApplicationsList() {
   const [newStatus, setNewStatus] = useState('');
   const [comments, setComments] = useState('');
   const [submittingStatus, setSubmittingStatus] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
 
   const loadApplications = async () => {
     setLoading(true);
@@ -57,7 +58,8 @@ export default function ApplicationsList() {
           full_name, 
           email, 
           status,
-          department:departments(code)
+          assigned_student_id,
+          department:departments(name, code)
         `);
       
       if (search) {
@@ -195,6 +197,48 @@ export default function ApplicationsList() {
     }
   };
 
+  const updateApplicationStatus = async (appId, newStatus) => {
+    const app = applications.find(a => a.id === appId);
+    if (!app) return;
+
+    setActionLoading(prev => ({ ...prev, [appId]: newStatus }));
+    try {
+      let studentId = null;
+
+      if (newStatus === 'Approved') {
+        studentId = app.assigned_student_id || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', appId);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: appId,
+          status: newStatus,
+          comments: `Status updated to ${newStatus} directly from application list.`
+        }]);
+
+      if (logError) throw logError;
+
+      await loadApplications();
+
+      if (selectedApp === appId) {
+        viewApplicationDetails(appId);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Error updating status');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [appId]: null }));
+    }
+  };
+
   const getStatusBadge = (status) => {
     let color = '#475569';
     let bg = 'rgba(71,85,105,0.08)';
@@ -317,16 +361,108 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>{app.id}</td>
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
-                  <td style={{ padding: '16px' }}>{app.department?.code || '-'}</td>
+                  <td style={{ padding: '16px' }}>{app.department?.name || '-'}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
-                    <button 
-                      className="btn-ripple btn-secondary" 
-                      style={{ padding: '6px 12px', fontSize: '12px' }}
-                      onClick={(e) => { e.stopPropagation(); viewApplicationDetails(app.id); }}
-                    >
-                      Review
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button 
+                        className="btn-ripple" 
+                        disabled={actionLoading[app.id] || app.status === 'Approved'}
+                        style={{ 
+                          padding: '6px 14px', 
+                          fontSize: '11px', 
+                          fontWeight: '800',
+                          borderRadius: '9999px',
+                          border: app.status === 'Rejected' ? '1px solid rgba(16, 185, 129, 0.2)' : 'none',
+                          backgroundColor: app.status === 'Approved' 
+                            ? '#10b981' 
+                            : (app.status === 'Rejected' ? 'rgba(16, 185, 129, 0.06)' : '#10b981'),
+                          color: app.status === 'Rejected' ? 'rgba(16, 185, 129, 0.6)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: (actionLoading[app.id] || app.status === 'Approved') ? 'default' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: app.status === 'Approved' ? 'none' : '0 2px 6px rgba(16, 185, 129, 0.2)'
+                        }}
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          updateApplicationStatus(app.id, 'Approved');
+                        }}
+                        onMouseOver={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Approved' && app.status !== 'Rejected') {
+                            e.currentTarget.style.backgroundColor = '#059669';
+                            e.currentTarget.style.transform = 'scale(1.04)';
+                          } else if (app.status === 'Rejected') {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Approved' && app.status !== 'Rejected') {
+                            e.currentTarget.style.backgroundColor = '#10b981';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          } else if (app.status === 'Rejected') {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.06)';
+                          }
+                        }}
+                      >
+                        {actionLoading[app.id] === 'Approved' ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Check size={12} style={{ strokeWidth: 3 }} />
+                        )}
+                        ACCEPT
+                      </button>
+
+                      <button 
+                        className="btn-ripple" 
+                        disabled={actionLoading[app.id] || app.status === 'Rejected'}
+                        style={{ 
+                          padding: '6px 14px', 
+                          fontSize: '11px', 
+                          fontWeight: '800',
+                          borderRadius: '9999px',
+                          border: app.status === 'Approved' ? '1px solid rgba(239, 68, 68, 0.2)' : 'none',
+                          backgroundColor: app.status === 'Rejected' 
+                            ? '#ef4444' 
+                            : (app.status === 'Approved' ? 'rgba(239, 68, 68, 0.06)' : '#ef4444'),
+                          color: app.status === 'Approved' ? 'rgba(239, 68, 68, 0.6)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: (actionLoading[app.id] || app.status === 'Rejected') ? 'default' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: app.status === 'Rejected' ? 'none' : '0 2px 6px rgba(239, 68, 68, 0.2)'
+                        }}
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          updateApplicationStatus(app.id, 'Rejected');
+                        }}
+                        onMouseOver={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Rejected' && app.status !== 'Approved') {
+                            e.currentTarget.style.backgroundColor = '#dc2626';
+                            e.currentTarget.style.transform = 'scale(1.04)';
+                          } else if (app.status === 'Approved') {
+                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Rejected' && app.status !== 'Approved') {
+                            e.currentTarget.style.backgroundColor = '#ef4444';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          } else if (app.status === 'Approved') {
+                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)';
+                          }
+                        }}
+                      >
+                        {actionLoading[app.id] === 'Rejected' ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <X size={12} style={{ strokeWidth: 3 }} />
+                        )}
+                        REJECT
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

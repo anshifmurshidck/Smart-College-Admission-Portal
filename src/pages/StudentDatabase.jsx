@@ -277,7 +277,7 @@ export default function StudentDatabase() {
                       <td style={{ padding: '14px 16px', fontWeight: '600' }}>{s.full_name}</td>
                       <td style={{ padding: '14px 16px' }}>
                         <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-purple)', backgroundColor: 'rgba(124,58,237,0.08)', padding: '3px 8px', borderRadius: '4px' }}>
-                          {s.department_code}
+                          {s.department_name}
                         </span>
                       </td>
                       <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{s.email}</td>
