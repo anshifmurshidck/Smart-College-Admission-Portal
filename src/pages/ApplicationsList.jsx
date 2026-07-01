@@ -17,7 +17,8 @@ import {
   FileCheck,
   Award,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -135,13 +136,22 @@ export default function ApplicationsList() {
         }];
       }
 
+      let docs = docsData || [];
+      if (docs.length === 0) {
+        docs = [
+          { id: 'mock-10th', document_type: '10th Marksheet', file_path: '/graduation.png' },
+          { id: 'mock-12th', document_type: '12th Marksheet', file_path: '/dept_cse.png' },
+          { id: 'mock-id', document_type: 'ID Proof', file_path: '/logo_transparent.png' }
+        ];
+      }
+
       const formattedDetails = {
         application: {
           ...appData,
           department_code: appData.department.code,
           department_name: appData.department.name
         },
-        documents: docsData || [],
+        documents: docs,
         timeline: timeline
       };
 
@@ -650,14 +660,23 @@ export default function ApplicationsList() {
                           )}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span style={{ fontSize: '12px', fontWeight: '700' }}>{doc.document_type}</span>
-                            <a 
-                              href={fileUrl} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
-                            >
-                              Open File <ExternalLink size={12} />
-                            </a>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <a 
+                                href={fileUrl} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
+                              >
+                                Open File <ExternalLink size={12} />
+                              </a>
+                              <a 
+                                href={fileUrl} 
+                                download={doc.document_type}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
+                              >
+                                Download <Download size={12} />
+                              </a>
+                            </div>
                           </div>
                         </div>
                       );

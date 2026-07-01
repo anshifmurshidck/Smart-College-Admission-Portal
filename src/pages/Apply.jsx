@@ -140,6 +140,10 @@ export default function Apply() {
         parentPhoneCountryCode: value,
         parentPhone: prev.parentPhone.slice(0, maxLen)
       }));
+    } else if (name === 'tenthPercentage' || name === 'twelfthPercentage') {
+      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -240,7 +244,20 @@ export default function Apply() {
 
     if (!formData.address.trim()) errs.address = 'Residential Address is required';
     else if (formData.address.length > 200) errs.address = 'Address must not exceed 200 characters';
-    if (!formData.dob) errs.dob = 'Date of Birth is required';
+    if (!formData.dob) {
+      errs.dob = 'Date of Birth is required';
+    } else {
+      const birthDate = new Date(formData.dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      if (age < 17) {
+        errs.dob = 'You must be at least 17 years old to apply for admission';
+      }
+    }
     if (!formData.gender) errs.gender = 'Gender is required';
 
     if (!formData.aadhaarNumber.trim()) {
@@ -259,6 +276,8 @@ export default function Apply() {
       const val = parseFloat(formData.tenthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.tenthPercentage = 'Percentage must be between 0 and 100';
+      } else if (!/^\d+(\.\d{1,2})?$/.test(formData.tenthPercentage.trim())) {
+        errs.tenthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
       }
     }
 
@@ -268,6 +287,8 @@ export default function Apply() {
       const val = parseFloat(formData.twelfthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.twelfthPercentage = 'Percentage must be between 0 and 100';
+      } else if (!/^\d+(\.\d{1,2})?$/.test(formData.twelfthPercentage.trim())) {
+        errs.twelfthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
       }
     }
 
@@ -735,8 +756,7 @@ export default function Apply() {
                   10th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
                   name="tenthPercentage"
                   value={formData.tenthPercentage}
                   onChange={handleInputChange}
@@ -753,8 +773,7 @@ export default function Apply() {
                   12th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
                   name="twelfthPercentage"
                   value={formData.twelfthPercentage}
                   onChange={handleInputChange}

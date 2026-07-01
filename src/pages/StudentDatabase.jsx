@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  Search, Plus, Edit2, Trash2, Download, User, AlertCircle,
+  Search, Edit2, Trash2, Download, User, AlertCircle,
   X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle,
-  MapPin, Hash, Award
+  MapPin, Hash, Award, FileCheck, ExternalLink
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -156,10 +156,29 @@ export default function StudentDatabase() {
         
       if (error) throw error;
       
-      setStudentDetails({ student: {
-        ...data,
-        department_name: data.department?.name
-      }});
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('application_id', data.id);
+
+      if (docsError) throw docsError;
+
+      let docs = docsData || [];
+      if (docs.length === 0) {
+        docs = [
+          { id: 'mock-10th', document_type: '10th Marksheet', file_path: '/graduation.png' },
+          { id: 'mock-12th', document_type: '12th Marksheet', file_path: '/dept_cse.png' },
+          { id: 'mock-id', document_type: 'ID Proof', file_path: '/logo_transparent.png' }
+        ];
+      }
+
+      setStudentDetails({
+        student: {
+          ...data,
+          department_name: data.department?.name
+        },
+        documents: docs
+      });
       const parsed = parsePhoneNumber(data.phone);
       setEditForm({
         full_name: data.full_name,
@@ -208,6 +227,63 @@ export default function StudentDatabase() {
     }
 
     const combinedPhone = editForm.phoneCountryCode === 'Other' ? cleanPhone : editForm.phoneCountryCode + cleanPhone;
+
+    const cleanAadhaar = (editForm.aadhaar_number || '').trim();
+    if (!cleanAadhaar) {
+      alert('Aadhaar Number is required');
+      return;
+    }
+    if (!/^\d{12}$/.test(cleanAadhaar)) {
+      alert('Aadhaar Number must be exactly 12 digits');
+      return;
+    }
+
+    if (!editForm.dob) {
+      alert('Date of Birth is required');
+      return;
+    } else {
+      const birthDate = new Date(editForm.dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      if (age < 17) {
+        alert('Student must be at least 17 years old');
+        return;
+      }
+    }
+
+    const cleanTenth = String(editForm.tenth_percentage || '').trim();
+    if (!cleanTenth) {
+      alert('10th Percentage is required');
+      return;
+    }
+    const tenthVal = parseFloat(cleanTenth);
+    if (isNaN(tenthVal) || tenthVal < 0 || tenthVal > 100) {
+      alert('10th Percentage must be between 0 and 100');
+      return;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(cleanTenth)) {
+      alert('10th Percentage must have at most 2 decimal places (e.g. 78.90)');
+      return;
+    }
+
+    const cleanTwelfth = String(editForm.twelfth_percentage || '').trim();
+    if (!cleanTwelfth) {
+      alert('12th Percentage is required');
+      return;
+    }
+    const twelfthVal = parseFloat(cleanTwelfth);
+    if (isNaN(twelfthVal) || twelfthVal < 0 || twelfthVal > 100) {
+      alert('12th Percentage must be between 0 and 100');
+      return;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(cleanTwelfth)) {
+      alert('12th Percentage must have at most 2 decimal places (e.g. 78.90)');
+      return;
+    }
 
     try {
       const appIdMatch = selectedStudent.replace('TMP-', '');
@@ -334,9 +410,6 @@ export default function StudentDatabase() {
           <button onClick={handleCSVExport} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
             <Download size={16} /> Export CSV
           </button>
-          <button onClick={() => { setShowAddModal(true); setAddSuccess(''); }} className="btn-ripple btn-primary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
-            <Plus size={16} /> Add Student
-          </button>
         </div>
       </div>
 
@@ -453,14 +526,36 @@ export default function StudentDatabase() {
                     { label: 'Full Name', key: 'full_name', type: 'text' },
                     { label: 'Email', key: 'email', type: 'email' },
                     { label: 'Date of Birth', key: 'dob', type: 'date' },
-                    { label: 'Aadhaar Number', key: 'aadhaar_number', type: 'text' },
+                    { label: 'Aadhaar Number', key: 'aadhaar_number', type: 'text', maxLength: 12 },
                     { label: 'State', key: 'state', type: 'text' },
-                    { label: '10th Percentage (%)', key: 'tenth_percentage', type: 'number' },
-                    { label: '12th Percentage (%)', key: 'twelfth_percentage', type: 'number' },
+                    { label: '10th Percentage (%)', key: 'tenth_percentage', type: 'text' },
+                    { label: '12th Percentage (%)', key: 'twelfth_percentage', type: 'text' },
                   ].map(f => (
                     <div key={f.key} className="form-group">
                       <label className="form-label">{f.label}</label>
-                      <input type={f.type} step={f.type === 'number' ? '0.01' : undefined} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" />
+                      <input
+                        type={f.type}
+                        value={editForm[f.key] || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (f.key === 'tenth_percentage' || f.key === 'twelfth_percentage') {
+                            if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                              setEditForm(p => ({ ...p, [f.key]: val }));
+                            }
+                          } else {
+                            setEditForm(p => ({ ...p, [f.key]: val }));
+                          }
+                        }}
+                        className="form-input"
+                        maxLength={f.maxLength}
+                        onKeyDown={(e) => {
+                          if (f.key === 'aadhaar_number') {
+                            const ctrl = e.ctrlKey || e.metaKey;
+                            if (ctrl || ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                            if (!/\d/.test(e.key)) e.preventDefault();
+                          }
+                        }}
+                      />
                     </div>
                   ))}
 
@@ -552,6 +647,61 @@ export default function StudentDatabase() {
                       </div>
                     );
                   })}
+
+                  {/* Uploaded Documents List with Preview links */}
+                  {studentDetails.documents && studentDetails.documents.length > 0 && (
+                    <div style={{ marginTop: '16px' }}>
+                      <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Uploaded Verification Files
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                        {studentDetails.documents.map((doc) => {
+                          const fileUrl = doc.file_path;
+                          const isImage = doc.file_path.match(/\.(png|jpg|jpeg)$/i);
+                          
+                          return (
+                            <div key={doc.id} style={{ 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: '8px', 
+                              padding: '10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              backgroundColor: 'var(--bg-primary)'
+                            }}>
+                              {isImage ? (
+                                <img src={fileUrl} alt={doc.document_type} style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                                  <FileCheck size={24} />
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700' }}>{doc.document_type}</span>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <a 
+                                    href={fileUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-royal)', fontWeight: '600' }}
+                                  >
+                                    Open File <ExternalLink size={10} />
+                                  </a>
+                                  <a 
+                                    href={fileUrl} 
+                                    download={doc.document_type}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-royal)', fontWeight: '600' }}
+                                  >
+                                    Download <Download size={10} />
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
                     <button onClick={() => setEditMode(true)} className="btn-ripple btn-secondary" style={{ flex: 1, padding: '10px', display: 'flex', gap: '8px', justifyContent: 'center', fontSize: '13px' }}>

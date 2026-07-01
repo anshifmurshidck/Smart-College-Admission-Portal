@@ -50,13 +50,29 @@ def apply():
         except ValueError:
             return jsonify({'message': 'Invalid department selection'}), 400
 
+        # Validate Date of Birth (must be at least 17 years old)
+        try:
+            birth_date = datetime.datetime.strptime(dob, '%Y-%m-%d').date()
+            today = datetime.date.today()
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            if age < 17:
+                return jsonify({'message': 'You must be at least 17 years old to apply for admission'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'message': 'Invalid Date of Birth format'}), 400
+
         # Validate Aadhaar and Percentages
         if not aadhaar_number.isdigit() or len(aadhaar_number) != 12:
             return jsonify({'message': 'Aadhaar Number must be exactly 12 digits'}), 400
 
+        tenth_str = str(tenth_percentage).strip()
+        twelfth_str = str(twelfth_percentage).strip()
+        import re
+        if not re.match(r'^\d+(\.\d{1,2})?$', tenth_str) or not re.match(r'^\d+(\.\d{1,2})?$', twelfth_str):
+            return jsonify({'message': 'Academic percentages must have at most 2 decimal places (e.g. 78.90)'}), 400
+
         try:
-            tenth_percentage = float(tenth_percentage)
-            twelfth_percentage = float(twelfth_percentage)
+            tenth_percentage = float(tenth_str)
+            twelfth_percentage = float(twelfth_str)
             if not (0 <= tenth_percentage <= 100) or not (0 <= twelfth_percentage <= 100):
                 raise ValueError()
         except ValueError:
