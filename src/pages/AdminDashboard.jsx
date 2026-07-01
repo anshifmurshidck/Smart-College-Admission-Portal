@@ -135,7 +135,7 @@ export default function AdminDashboard() {
         </div>
         <button onClick={loadDashboardData} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
           <RefreshCw size={16} />
-          Refresh Stats
+          Refresh Status
         </button>
       </div>
 

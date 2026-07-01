@@ -152,6 +152,22 @@ export default function Apply() {
     }
   };
 
+  /* ── Blur: trim string and validate field ───────────────────────── */
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    if (typeof value === 'string') {
+      const trimmedValue = value.trim();
+      if (value !== trimmedValue) {
+        setFormData((prev) => ({ ...prev, [name]: trimmedValue }));
+      }
+      
+      const tempFormData = { ...formData, [name]: trimmedValue };
+      const errs = buildErrors(tempFormData);
+      
+      setFieldErrors((prev) => ({ ...prev, [name]: errs[name] || '' }));
+    }
+  };
+
   /* ── Allow only letters/spaces/dots/hyphens in name fields ──────── */
   const handleNameKeyDown = (e) => {
     // Allow: backspace, delete, tab, arrows, home, end
@@ -212,22 +228,22 @@ export default function Apply() {
   };
 
   /* ─── Per-field validation → returns errors object ──────────────── */
-  const buildErrors = () => {
+  const buildErrors = (data = formData) => {
     const errs = {};
-    if (!formData.fullName.trim()) errs.fullName = 'Full Name is required';
-    else if (/\d/.test(formData.fullName)) errs.fullName = 'Name must not contain numbers';
+    if (!data.fullName.trim()) errs.fullName = 'Full Name is required';
+    else if (/\d/.test(data.fullName)) errs.fullName = 'Name must not contain numbers';
 
-    if (!formData.email.trim()) errs.email = 'Email Address is required';
-    else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(formData.email))
+    if (!data.email.trim()) errs.email = 'Email Address is required';
+    else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(data.email))
       errs.email = 'Enter a valid email address';
 
     // Student phone validation
-    const studentCountry = countryCodes.find(c => c.code === formData.phoneCountryCode);
-    const cleanPhone = formData.phone.trim();
+    const studentCountry = countryCodes.find(c => c.code === data.phoneCountryCode);
+    const cleanPhone = data.phone.trim();
     if (!cleanPhone) {
       errs.phone = 'Phone Number is required';
     } else {
-      if (formData.phoneCountryCode === 'Other') {
+      if (data.phoneCountryCode === 'Other') {
         if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
           errs.phone = 'Phone must be between 7 and 15 digits';
         }
@@ -242,12 +258,12 @@ export default function Apply() {
       }
     }
 
-    if (!formData.address.trim()) errs.address = 'Residential Address is required';
-    else if (formData.address.length > 200) errs.address = 'Address must not exceed 200 characters';
-    if (!formData.dob) {
+    if (!data.address.trim()) errs.address = 'Residential Address is required';
+    else if (data.address.length > 200) errs.address = 'Address must not exceed 200 characters';
+    if (!data.dob) {
       errs.dob = 'Date of Birth is required';
     } else {
-      const birthDate = new Date(formData.dob);
+      const birthDate = new Date(data.dob);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -258,50 +274,50 @@ export default function Apply() {
         errs.dob = 'You must be at least 17 years old to apply for admission';
       }
     }
-    if (!formData.gender) errs.gender = 'Gender is required';
+    if (!data.gender) errs.gender = 'Gender is required';
 
-    if (!formData.aadhaarNumber.trim()) {
+    if (!data.aadhaarNumber.trim()) {
       errs.aadhaarNumber = 'Aadhaar Number is required';
-    } else if (!/^\d{12}$/.test(formData.aadhaarNumber)) {
+    } else if (!/^\d{12}$/.test(data.aadhaarNumber)) {
       errs.aadhaarNumber = 'Aadhaar Number must be exactly 12 digits';
     }
 
-    if (!formData.state.trim()) {
+    if (!data.state.trim()) {
       errs.state = 'State is required';
     }
 
-    if (!formData.tenthPercentage.trim()) {
+    if (!data.tenthPercentage.trim()) {
       errs.tenthPercentage = '10th Percentage is required';
     } else {
-      const val = parseFloat(formData.tenthPercentage);
+      const val = parseFloat(data.tenthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.tenthPercentage = 'Percentage must be between 0 and 100';
-      } else if (!/^\d+(\.\d{1,2})?$/.test(formData.tenthPercentage.trim())) {
+      } else if (!/^\d+(\.\d{1,2})?$/.test(data.tenthPercentage.trim())) {
         errs.tenthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
       }
     }
 
-    if (!formData.twelfthPercentage.trim()) {
+    if (!data.twelfthPercentage.trim()) {
       errs.twelfthPercentage = '12th Percentage is required';
     } else {
-      const val = parseFloat(formData.twelfthPercentage);
+      const val = parseFloat(data.twelfthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.twelfthPercentage = 'Percentage must be between 0 and 100';
-      } else if (!/^\d+(\.\d{1,2})?$/.test(formData.twelfthPercentage.trim())) {
+      } else if (!/^\d+(\.\d{1,2})?$/.test(data.twelfthPercentage.trim())) {
         errs.twelfthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
       }
     }
 
-    if (!formData.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
-    else if (/\d/.test(formData.parentName)) errs.parentName = 'Name must not contain numbers';
+    if (!data.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
+    else if (/\d/.test(data.parentName)) errs.parentName = 'Name must not contain numbers';
 
     // Parent phone validation
-    const parentCountry = countryCodes.find(c => c.code === formData.parentPhoneCountryCode);
-    const cleanParentPhone = formData.parentPhone.trim();
+    const parentCountry = countryCodes.find(c => c.code === data.parentPhoneCountryCode);
+    const cleanParentPhone = data.parentPhone.trim();
     if (!cleanParentPhone) {
       errs.parentPhone = 'Parent Contact Number is required';
     } else {
-      if (formData.parentPhoneCountryCode === 'Other') {
+      if (data.parentPhoneCountryCode === 'Other') {
         if (!/^\+?[0-9]{7,15}$/.test(cleanParentPhone)) {
           errs.parentPhone = 'Phone must be between 7 and 15 digits';
         }
@@ -316,7 +332,7 @@ export default function Apply() {
       }
     }
 
-    if (!formData.departmentId) errs.departmentId = 'Please select a department';
+    if (!data.departmentId) errs.departmentId = 'Please select a department';
     if (!files.marksheet10) errs.marksheet10 = '10th Marksheet is required';
     if (!files.marksheet12) errs.marksheet12 = '12th Marksheet is required';
     if (!files.idProof) errs.idProof = 'Government ID Proof is required';
@@ -328,7 +344,20 @@ export default function Apply() {
   /* ─── Submit ─────────────────────────────────────────────────────── */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errs = buildErrors();
+    
+    // Trim all string values in formData
+    const trimmedData = {};
+    for (const key in formData) {
+      if (typeof formData[key] === 'string') {
+        trimmedData[key] = formData[key].trim();
+      } else {
+        trimmedData[key] = formData[key];
+      }
+    }
+    
+    setFormData(trimmedData);
+
+    const errs = buildErrors(trimmedData);
 
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
@@ -365,25 +394,25 @@ export default function Apply() {
         const marksheet12Url = await uploadFile(files.marksheet12, 'marksheet12');
         const idProofUrl = await uploadFile(files.idProof, 'idProof');
 
-        const combinedPhone = formData.phoneCountryCode === 'Other' ? formData.phone.trim() : formData.phoneCountryCode + formData.phone.trim();
-        const combinedParentPhone = formData.parentPhoneCountryCode === 'Other' ? formData.parentPhone.trim() : formData.parentPhoneCountryCode + formData.parentPhone.trim();
+        const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
+        const combinedParentPhone = trimmedData.parentPhoneCountryCode === 'Other' ? trimmedData.parentPhone : trimmedData.parentPhoneCountryCode + trimmedData.parentPhone;
 
         // 3. Insert Application Data
         const { error: appError } = await supabase.from('applications').insert([{
           id: appId,
-          full_name: formData.fullName,
-          email: formData.email,
+          full_name: trimmedData.fullName,
+          email: trimmedData.email,
           phone: combinedPhone,
-          address: formData.address,
-          dob: formData.dob,
-          gender: formData.gender,
-          parent_name: formData.parentName,
+          address: trimmedData.address,
+          dob: trimmedData.dob,
+          gender: trimmedData.gender,
+          parent_name: trimmedData.parentName,
           parent_phone: combinedParentPhone,
-          department_id: parseInt(formData.departmentId),
-          aadhaar_number: formData.aadhaarNumber,
-          state: formData.state,
-          tenth_percentage: parseFloat(formData.tenthPercentage),
-          twelfth_percentage: parseFloat(formData.twelfthPercentage),
+          department_id: parseInt(trimmedData.departmentId),
+          aadhaar_number: trimmedData.aadhaarNumber,
+          state: trimmedData.state,
+          tenth_percentage: parseFloat(trimmedData.tenthPercentage),
+          twelfth_percentage: parseFloat(trimmedData.twelfthPercentage),
           status: 'Pending'
         }]);
 
@@ -475,15 +504,13 @@ export default function Apply() {
               <div className="form-group">
                 <label className="form-label">
                   Full Name <span style={{ color: '#ef4444' }}>*</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '6px' }}>
-                    (As per High School Certificate)
-                  </span>
                 </label>
                 <input
                   type="text"
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   onKeyDown={handleNameKeyDown}
                   className="form-input"
                   placeholder="John Doe"
@@ -503,6 +530,7 @@ export default function Apply() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     className="form-input"
                     placeholder="john@example.com"
                     style={inputStyle(fieldErrors.email)}
@@ -533,6 +561,7 @@ export default function Apply() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
+                      onBlur={handleBlur}
                       onKeyDown={(e) => handlePhoneKeyDown(e, formData.phoneCountryCode)}
                       className="form-input"
                       placeholder={
@@ -600,6 +629,7 @@ export default function Apply() {
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   rows="3"
                   className="form-textarea"
                   placeholder="Street Address, City, ZIP Code"
@@ -645,6 +675,7 @@ export default function Apply() {
                     name="aadhaarNumber"
                     value={formData.aadhaarNumber}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     onKeyDown={(e) => {
                       const ctrl = e.ctrlKey || e.metaKey;
                       if (ctrl || ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
@@ -685,6 +716,7 @@ export default function Apply() {
                   name="parentName"
                   value={formData.parentName}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   onKeyDown={handleNameKeyDown}
                   className="form-input"
                   placeholder="Richard Doe"
@@ -716,6 +748,7 @@ export default function Apply() {
                     name="parentPhone"
                     value={formData.parentPhone}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     onKeyDown={(e) => handlePhoneKeyDown(e, formData.parentPhoneCountryCode)}
                     className="form-input"
                     placeholder={
@@ -760,6 +793,7 @@ export default function Apply() {
                   name="tenthPercentage"
                   value={formData.tenthPercentage}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   className="form-input"
                   placeholder="e.g. 92.50"
                   style={inputStyle(fieldErrors.tenthPercentage)}
@@ -777,6 +811,7 @@ export default function Apply() {
                   name="twelfthPercentage"
                   value={formData.twelfthPercentage}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   className="form-input"
                   placeholder="e.g. 88.40"
                   style={inputStyle(fieldErrors.twelfthPercentage)}
