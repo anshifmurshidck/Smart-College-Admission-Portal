@@ -138,11 +138,33 @@ export default function ApplicationsList() {
 
       let docs = docsData || [];
       if (docs.length === 0) {
-        docs = [
-          { id: 'mock-10th', document_type: '10th Marksheet', file_path: '/graduation.png' },
-          { id: 'mock-12th', document_type: '12th Marksheet', file_path: '/dept_cse.png' },
-          { id: 'mock-id', document_type: 'ID Proof', file_path: '/logo_transparent.png' }
+        const docTypes = [
+          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
+          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
+          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
         ];
+        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
+        
+        docs = await Promise.all(docTypes.map(async (doc) => {
+          let foundUrl = null;
+          for (const ext of exts) {
+            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appId}/${doc.name}${ext}`).data.publicUrl;
+            try {
+              const res = await fetch(publicUrl, { method: 'HEAD' });
+              if (res.ok) {
+                foundUrl = publicUrl;
+                break;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+          return {
+            id: foundUrl ? `${appId}-${doc.id}` : `mock-${doc.id}`,
+            document_type: doc.title,
+            file_path: foundUrl || doc.fallback
+          };
+        }));
       }
 
       const formattedDetails = {
