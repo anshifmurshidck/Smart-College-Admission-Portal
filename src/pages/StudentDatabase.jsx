@@ -1,10 +1,67 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import {
-  Search, Plus, Edit2, Trash2, Download, User, AlertCircle,
-  X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle
+  Search, Edit2, Trash2, Download, User, AlertCircle,
+  X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle,
+  MapPin, Hash, Award, FileCheck, ExternalLink
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+
+const countryCodes = [
+  { code: '+91', name: 'India', flag: '🇮🇳', length: 10, placeholder: '98765 43210' },
+  { code: '+1', name: 'US / Canada', flag: '🇺🇸', length: 10, placeholder: '201 555 0123' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', length: 10, placeholder: '7700 900077' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', length: 9, placeholder: '412 345 678' },
+  { code: '+86', name: 'China', flag: '🇨🇳', length: 11, placeholder: '138 1234 5678' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', length: 9, placeholder: '50 123 4567' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', length: 8, placeholder: '8123 4567' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', minLength: 10, maxLength: 11, placeholder: '170 1234567' },
+  { code: '+33', name: 'France', flag: '🇫🇷', length: 9, placeholder: '6 1234 5678' },
+  { code: '+92', name: 'Pakistan', flag: '🇵🇰', length: 10, placeholder: '300 1234567' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', length: 10, placeholder: '1712 345678' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', length: 9, placeholder: '71 234 5678' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', length: 10, placeholder: '985 1012345' },
+  { code: '+60', name: 'Malaysia', flag: '🇲🇾', minLength: 9, maxLength: 10, placeholder: '12 345 6789' },
+  { code: '+62', name: 'Indonesia', flag: '🇮🇩', minLength: 9, maxLength: 12, placeholder: '812 3456 7890' },
+  { code: '+39', name: 'Italy', flag: '🇮🇹', length: 10, placeholder: '312 345 6789' },
+  { code: '+34', name: 'Spain', flag: '🇪🇸', length: 9, placeholder: '612 345 678' },
+  { code: '+27', name: 'South Africa', flag: '🇿🇦', length: 9, placeholder: '82 123 4567' },
+  { code: 'Other', name: 'Other', flag: '🌐', minLength: 7, maxLength: 15, placeholder: 'Enter phone' },
+];
+
+const parsePhoneNumber = (combinedPhone) => {
+  if (!combinedPhone) return { countryCode: '+91', localPhone: '' };
+  
+  const sortedCodes = [...countryCodes].sort((a, b) => b.code.length - a.code.length);
+  for (const c of sortedCodes) {
+    if (c.code !== 'Other' && combinedPhone.startsWith(c.code)) {
+      return {
+        countryCode: c.code,
+        localPhone: combinedPhone.slice(c.code.length)
+      };
+    }
+  }
+  
+  const match = combinedPhone.match(/^(\+[0-9]+)([0-9]{7,15})$/);
+  if (match) {
+    return { countryCode: match[1], localPhone: match[2] };
+  }
+  
+  return { countryCode: 'Other', localPhone: combinedPhone };
+};
+
+const handlePhoneKeyDown = (e, countryCode) => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (
+    ctrl ||
+    ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)
+  )
+    return;
+  if (countryCode === 'Other' && e.key === '+' && e.target.selectionStart === 0) return;
+  if (!/\d/.test(e.key)) {
+    e.preventDefault();
+  }
+};
 
 export default function StudentDatabase() {
   const [students, setStudents] = useState([]);
@@ -14,7 +71,7 @@ export default function StudentDatabase() {
   const [deptFilter, setDeptFilter] = useState('');
   const [departments, setDepartments] = useState([]);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 15;
 
   // Selected student modal
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -27,7 +84,7 @@ export default function StudentDatabase() {
 
   // Add Student Modal
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
+  const [addForm, setAddForm] = useState({ fullName:'', email:'', phoneCountryCode: '+91', phone:'', dob:'', gender:'', departmentId:'', address:'' });
   const [addLoading, setAddLoading] = useState(false);
   const [addSuccess, setAddSuccess] = useState('');
 
@@ -41,21 +98,46 @@ export default function StudentDatabase() {
   const loadStudents = () => {
     setLoading(true);
     setErrorMsg('');
-    axios.get(`${API_BASE}/admin/students`, {
-      params: { search, departmentId: deptFilter },
-      headers: authHeaders()
-    }).then(res => {
-      setStudents(res.data);
+    try {
+      let query = supabase.from('applications').select('*, department:departments(code, name)').eq('status', 'Approved');
+      
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,assigned_student_id.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+      if (deptFilter) {
+        query = query.eq('department_id', deptFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      const formatted = data.map(app => ({
+        id: app.assigned_student_id || `TMP-${app.id}`,
+        application_id: app.id,
+        full_name: app.full_name,
+        email: app.email,
+        phone: app.phone,
+        dob: app.dob,
+        gender: app.gender,
+        department_id: app.department_id,
+        department_code: app.department?.code,
+        department_name: app.department?.name,
+        enroll_date: app.updated_at
+      }));
+      setStudents(formatted);
       setPage(1);
-      setLoading(false);
-    }).catch(err => {
+    } catch (err) {
       setErrorMsg('Failed to load student database.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
-  const loadDepartments = () => {
-    axios.get(`${API_BASE}/departments`).then(res => setDepartments(res.data)).catch(() => {});
+  const loadDepartments = async () => {
+    try {
+      const { data } = await supabase.from('departments').select('*');
+      if (data) setDepartments(data);
+    } catch(e) {}
   };
 
   useEffect(() => {
@@ -63,68 +145,278 @@ export default function StudentDatabase() {
     loadDepartments();
   }, [search, deptFilter]);
 
-  const viewStudent = (studentId) => {
+  const viewStudent = async (studentId) => {
     setSelectedStudent(studentId);
     setEditMode(false);
     setDetailsLoading(true);
     setStudentDetails(null);
-    axios.get(`${API_BASE}/admin/students/${studentId}`, { headers: authHeaders() })
-      .then(res => {
-        setStudentDetails(res.data);
-        setEditForm({
-          full_name: res.data.student.full_name,
-          email: res.data.student.email,
-          phone: res.data.student.phone,
-          dob: res.data.student.dob,
-          gender: res.data.student.gender,
-          department_id: res.data.student.department_id
-        });
-        setDetailsLoading(false);
-      })
-      .catch(() => setDetailsLoading(false));
+    
+    try {
+      const appIdMatch = studentId.replace('TMP-', '');
+      const { data, error } = await supabase.from('applications')
+        .select('*, department:departments(code, name)')
+        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`)
+        .single();
+        
+      if (error) throw error;
+      
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('application_id', data.id);
+
+      if (docsError) throw docsError;
+
+      let docs = docsData || [];
+      if (docs.length === 0) {
+        const appIdForUrl = data.id;
+        const docTypes = [
+          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
+          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
+          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
+        ];
+        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
+        
+        docs = await Promise.all(docTypes.map(async (doc) => {
+          let foundUrl = null;
+          for (const ext of exts) {
+            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appIdForUrl}/${doc.name}${ext}`).data.publicUrl;
+            try {
+              const res = await fetch(publicUrl, { method: 'HEAD' });
+              if (res.ok) {
+                foundUrl = publicUrl;
+                break;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+          return {
+            id: foundUrl ? `${appIdForUrl}-${doc.id}` : `mock-${doc.id}`,
+            document_type: doc.title,
+            file_path: foundUrl || doc.fallback
+          };
+        }));
+      }
+
+      setStudentDetails({
+        student: {
+          ...data,
+          department_name: data.department?.name
+        },
+        documents: docs
+      });
+      const parsed = parsePhoneNumber(data.phone);
+      setEditForm({
+        full_name: data.full_name,
+        email: data.email,
+        phoneCountryCode: parsed.countryCode,
+        phone: parsed.localPhone,
+        dob: data.dob,
+        gender: data.gender,
+        department_id: data.department_id,
+        aadhaar_number: data.aadhaar_number,
+        state: data.state,
+        tenth_percentage: data.tenth_percentage,
+        twelfth_percentage: data.twelfth_percentage
+      });
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
-    axios.put(`${API_BASE}/admin/students/${selectedStudent}`, editForm, { headers: authHeaders() })
-      .then(() => {
-        loadStudents();
-        viewStudent(selectedStudent);
-        setEditMode(false);
-      })
-      .catch(err => alert(err.response?.data?.message || 'Edit failed'));
+    const studentCountry = countryCodes.find(c => c.code === editForm.phoneCountryCode);
+    const cleanPhone = (editForm.phone || '').trim();
+    if (!cleanPhone) {
+      alert('Phone Number is required');
+      return;
+    }
+    if (editForm.phoneCountryCode === 'Other') {
+      if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+        alert('Phone must be between 7 and 15 digits');
+        return;
+      }
+    } else {
+      if (!/^[0-9]+$/.test(cleanPhone)) {
+        alert('Phone number must contain only digits');
+        return;
+      } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+        alert(`Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+        alert(`Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      }
+    }
+
+    const combinedPhone = editForm.phoneCountryCode === 'Other' ? cleanPhone : editForm.phoneCountryCode + cleanPhone;
+
+    const cleanAadhaar = (editForm.aadhaar_number || '').trim();
+    if (!cleanAadhaar) {
+      alert('Aadhaar Number is required');
+      return;
+    }
+    if (!/^\d{12}$/.test(cleanAadhaar)) {
+      alert('Aadhaar Number must be exactly 12 digits');
+      return;
+    }
+
+    if (!editForm.dob) {
+      alert('Date of Birth is required');
+      return;
+    } else {
+      const birthDate = new Date(editForm.dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      if (age < 17) {
+        alert('Student must be at least 17 years old');
+        return;
+      }
+    }
+
+    const cleanTenth = String(editForm.tenth_percentage || '').trim();
+    if (!cleanTenth) {
+      alert('10th Percentage is required');
+      return;
+    }
+    const tenthVal = parseFloat(cleanTenth);
+    if (isNaN(tenthVal) || tenthVal < 0 || tenthVal > 100) {
+      alert('10th Percentage must be between 0 and 100');
+      return;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(cleanTenth)) {
+      alert('10th Percentage must have at most 2 decimal places (e.g. 78.90)');
+      return;
+    }
+
+    const cleanTwelfth = String(editForm.twelfth_percentage || '').trim();
+    if (!cleanTwelfth) {
+      alert('12th Percentage is required');
+      return;
+    }
+    const twelfthVal = parseFloat(cleanTwelfth);
+    if (isNaN(twelfthVal) || twelfthVal < 0 || twelfthVal > 100) {
+      alert('12th Percentage must be between 0 and 100');
+      return;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(cleanTwelfth)) {
+      alert('12th Percentage must have at most 2 decimal places (e.g. 78.90)');
+      return;
+    }
+
+    try {
+      const appIdMatch = selectedStudent.replace('TMP-', '');
+      const updatedForm = {
+        ...editForm,
+        phone: combinedPhone,
+        tenth_percentage: editForm.tenth_percentage ? parseFloat(editForm.tenth_percentage) : null,
+        twelfth_percentage: editForm.twelfth_percentage ? parseFloat(editForm.twelfth_percentage) : null
+      };
+      delete updatedForm.phoneCountryCode;
+
+      const { error } = await supabase.from('applications')
+        .update(updatedForm)
+        .or(`assigned_student_id.eq.${selectedStudent},id.eq.${appIdMatch}`);
+      
+      if (error) throw error;
+      loadStudents();
+      viewStudent(selectedStudent);
+      setEditMode(false);
+    } catch(err) {
+      alert(err.message || 'Edit failed');
+    }
   };
 
-  const handleDelete = (studentId) => {
-    axios.delete(`${API_BASE}/admin/students/${studentId}`, { headers: authHeaders() })
-      .then(() => {
-        setDeleteTarget(null);
-        setSelectedStudent(null);
-        loadStudents();
-      })
-      .catch(err => alert(err.response?.data?.message || 'Delete failed'));
+  const handleDelete = async (studentId) => {
+    try {
+      const appIdMatch = studentId.replace('TMP-', '');
+      const { error } = await supabase.from('applications')
+        .update({ status: 'Pending', assigned_student_id: null })
+        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`);
+      
+      if (error) throw error;
+      setDeleteTarget(null);
+      setSelectedStudent(null);
+      loadStudents();
+    } catch(err) {
+      alert(err.message || 'Delete failed');
+    }
   };
 
-  const handleAddStudent = (e) => {
+  const handleAddStudent = async (e) => {
     e.preventDefault();
+    const studentCountry = countryCodes.find(c => c.code === addForm.phoneCountryCode);
+    const cleanPhone = (addForm.phone || '').trim();
+    if (!cleanPhone) {
+      alert('Phone Number is required');
+      return;
+    }
+    if (addForm.phoneCountryCode === 'Other') {
+      if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+        alert('Phone must be between 7 and 15 digits');
+        return;
+      }
+    } else {
+      if (!/^[0-9]+$/.test(cleanPhone)) {
+        alert('Phone number must contain only digits');
+        return;
+      } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+        alert(`Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+        alert(`Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      }
+    }
+
+    const combinedPhone = addForm.phoneCountryCode === 'Other' ? cleanPhone : addForm.phoneCountryCode + cleanPhone;
+
     setAddLoading(true);
     setAddSuccess('');
-    axios.post(`${API_BASE}/admin/students/add`, addForm, { headers: authHeaders() })
-      .then(res => {
-        setAddSuccess(`Student registered! ID: ${res.data.studentId}`);
-        setAddLoading(false);
-        loadStudents();
-        setAddForm({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
-      })
-      .catch(err => {
-        alert(err.response?.data?.message || 'Failed to add student');
-        setAddLoading(false);
-      });
+    
+    try {
+      const year = new Date().getFullYear();
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      const studentId = `STU-${year}-${rand}`;
+      const appId = `APP-${year}-${rand}`;
+      
+      const { error } = await supabase.from('applications').insert([{
+        id: appId,
+        full_name: addForm.fullName,
+        email: addForm.email,
+        phone: combinedPhone,
+        dob: addForm.dob,
+        gender: addForm.gender,
+        department_id: addForm.departmentId,
+        address: addForm.address,
+        status: 'Approved',
+        assigned_student_id: studentId,
+        parent_name: 'N/A',
+        parent_phone: 'N/A'
+      }]);
+      
+      if (error) throw error;
+      
+      setAddSuccess(`Student registered! ID: ${studentId}`);
+      setAddForm({ fullName:'', email:'', phoneCountryCode: '+91', phone:'', dob:'', gender:'', departmentId:'', address:'' });
+      loadStudents();
+    } catch(err) {
+      alert(err.message || 'Failed to add student');
+    } finally {
+      setAddLoading(false);
+    }
   };
 
   const handleCSVExport = () => {
-    const token_val = token();
-    window.open(`${API_BASE}/admin/students?export=csv`, '_blank');
+    alert("CSV Export is disabled in mock mode.");
   };
 
   // Pagination
@@ -144,9 +436,6 @@ export default function StudentDatabase() {
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button onClick={handleCSVExport} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
             <Download size={16} /> Export CSV
-          </button>
-          <button onClick={() => { setShowAddModal(true); setAddSuccess(''); }} className="btn-ripple btn-primary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
-            <Plus size={16} /> Add Student
           </button>
         </div>
       </div>
@@ -201,7 +490,7 @@ export default function StudentDatabase() {
                       <td style={{ padding: '14px 16px', fontWeight: '600' }}>{s.full_name}</td>
                       <td style={{ padding: '14px 16px' }}>
                         <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-purple)', backgroundColor: 'rgba(124,58,237,0.08)', padding: '3px 8px', borderRadius: '4px' }}>
-                          {s.department_code}
+                          {s.department_name}
                         </span>
                       </td>
                       <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{s.email}</td>
@@ -222,19 +511,17 @@ export default function StudentDatabase() {
               </table>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  <span>Page {page} of {totalPages} — {students.length} records</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1 }}>
-                      <ChevronLeft size={14} />
-                    </button>
-                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1 }}>
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <span>Page {page} of {totalPages} — {students.length} records</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
-              )}
+              </div>
             </>
           )
         }
@@ -265,14 +552,82 @@ export default function StudentDatabase() {
                   {[
                     { label: 'Full Name', key: 'full_name', type: 'text' },
                     { label: 'Email', key: 'email', type: 'email' },
-                    { label: 'Phone', key: 'phone', type: 'tel' },
                     { label: 'Date of Birth', key: 'dob', type: 'date' },
+                    { label: 'Aadhaar Number', key: 'aadhaar_number', type: 'text', maxLength: 12 },
+                    { label: 'State', key: 'state', type: 'text' },
+                    { label: '10th Percentage (%)', key: 'tenth_percentage', type: 'text' },
+                    { label: '12th Percentage (%)', key: 'twelfth_percentage', type: 'text' },
                   ].map(f => (
                     <div key={f.key} className="form-group">
                       <label className="form-label">{f.label}</label>
-                      <input type={f.type} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" />
+                      <input
+                        type={f.type}
+                        value={editForm[f.key] || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (f.key === 'tenth_percentage' || f.key === 'twelfth_percentage') {
+                            if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                              setEditForm(p => ({ ...p, [f.key]: val }));
+                            }
+                          } else {
+                            setEditForm(p => ({ ...p, [f.key]: val }));
+                          }
+                        }}
+                        className="form-input"
+                        maxLength={f.maxLength}
+                        onKeyDown={(e) => {
+                          if (f.key === 'aadhaar_number') {
+                            const ctrl = e.ctrlKey || e.metaKey;
+                            if (ctrl || ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                            if (!/\d/.test(e.key)) e.preventDefault();
+                          }
+                        }}
+                      />
                     </div>
                   ))}
+
+                  <div className="form-group">
+                    <label className="form-label">Phone</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select
+                        value={editForm.phoneCountryCode || '+91'}
+                        onChange={e => {
+                          const code = e.target.value;
+                          const selected = countryCodes.find(c => c.code === code);
+                          const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+                          setEditForm(p => ({
+                            ...p,
+                            phoneCountryCode: code,
+                            phone: (p.phone || '').slice(0, maxLen)
+                          }));
+                        }}
+                        className="form-select"
+                        style={{ width: '110px', flexShrink: 0 }}
+                      >
+                        {countryCodes.map(c => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} {c.code}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        value={editForm.phone || ''}
+                        onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
+                        onKeyDown={e => handlePhoneKeyDown(e, editForm.phoneCountryCode)}
+                        className="form-input"
+                        placeholder={
+                          countryCodes.find((c) => c.code === editForm.phoneCountryCode)?.placeholder || 'Enter phone'
+                        }
+                        maxLength={
+                          (() => {
+                            const selected = countryCodes.find(c => c.code === editForm.phoneCountryCode);
+                            return selected ? (selected.maxLength || selected.length || 15) : 15;
+                          })()
+                        }
+                      />
+                    </div>
+                  </div>
                   <div className="form-group">
                     <label className="form-label">Gender</label>
                     <select value={editForm.gender || ''} onChange={e => setEditForm(p => ({ ...p, gender: e.target.value }))} className="form-select">
@@ -301,6 +656,10 @@ export default function StudentDatabase() {
                     { icon: Calendar, label: 'Date of Birth', val: String(studentDetails.student.dob).substring(0, 10) },
                     { icon: User, label: 'Gender', val: studentDetails.student.gender },
                     { icon: GraduationCap, label: 'Department', val: studentDetails.student.department_name },
+                    { icon: MapPin, label: 'State', val: studentDetails.student.state || 'N/A' },
+                    { icon: Hash, label: 'Aadhaar Number', val: studentDetails.student.aadhaar_number || 'N/A' },
+                    { icon: Award, label: '10th Percentage', val: studentDetails.student.tenth_percentage ? `${studentDetails.student.tenth_percentage}%` : 'N/A' },
+                    { icon: Award, label: '12th Percentage', val: studentDetails.student.twelfth_percentage ? `${studentDetails.student.twelfth_percentage}%` : 'N/A' },
                   ].map((item, idx) => {
                     const Icon = item.icon;
                     return (
@@ -315,6 +674,61 @@ export default function StudentDatabase() {
                       </div>
                     );
                   })}
+
+                  {/* Uploaded Documents List with Preview links */}
+                  {studentDetails.documents && studentDetails.documents.length > 0 && (
+                    <div style={{ marginTop: '16px' }}>
+                      <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Uploaded Verification Files
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                        {studentDetails.documents.map((doc) => {
+                          const fileUrl = doc.file_path;
+                          const isImage = doc.file_path.match(/\.(png|jpg|jpeg)$/i);
+                          
+                          return (
+                            <div key={doc.id} style={{ 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: '8px', 
+                              padding: '10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              backgroundColor: 'var(--bg-primary)'
+                            }}>
+                              {isImage ? (
+                                <img src={fileUrl} alt={doc.document_type} style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                                  <FileCheck size={24} />
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700' }}>{doc.document_type}</span>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <a 
+                                    href={fileUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-royal)', fontWeight: '600' }}
+                                  >
+                                    Open File <ExternalLink size={10} />
+                                  </a>
+                                  <a 
+                                    href={fileUrl} 
+                                    download={doc.document_type}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-royal)', fontWeight: '600' }}
+                                  >
+                                    Download <Download size={10} />
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
                     <button onClick={() => setEditMode(true)} className="btn-ripple btn-secondary" style={{ flex: 1, padding: '10px', display: 'flex', gap: '8px', justifyContent: 'center', fontSize: '13px' }}>
@@ -371,7 +785,6 @@ export default function StudentDatabase() {
                 {[
                   { label: 'Full Name', key: 'fullName', type: 'text', placeholder: 'John Doe' },
                   { label: 'Email', key: 'email', type: 'email', placeholder: 'john@example.com' },
-                  { label: 'Phone', key: 'phone', type: 'tel', placeholder: '9876543210' },
                   { label: 'Date of Birth', key: 'dob', type: 'date', placeholder: '' },
                   { label: 'Residential Address', key: 'address', type: 'text', placeholder: 'Full address' },
                 ].map(f => (
@@ -380,6 +793,52 @@ export default function StudentDatabase() {
                     <input required type={f.type} value={addForm[f.key]} onChange={e => setAddForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" placeholder={f.placeholder} />
                   </div>
                 ))}
+
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      required
+                      value={addForm.phoneCountryCode}
+                      onChange={e => {
+                        const code = e.target.value;
+                        const selected = countryCodes.find(c => c.code === code);
+                        const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+                        setAddForm(p => ({
+                          ...p,
+                          phoneCountryCode: code,
+                          phone: (p.phone || '').slice(0, maxLen)
+                        }));
+                      }}
+                      className="form-select"
+                      style={{ width: '110px', flexShrink: 0 }}
+                    >
+                      {countryCodes.map(c => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      required
+                      type="tel"
+                      value={addForm.phone}
+                      onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))}
+                      onKeyDown={e => handlePhoneKeyDown(e, addForm.phoneCountryCode)}
+                      className="form-input"
+                      placeholder={
+                        countryCodes.find((c) => c.code === addForm.phoneCountryCode)?.placeholder || 'Enter phone'
+                      }
+                      maxLength={
+                        (() => {
+                          const selected = countryCodes.find(c => c.code === addForm.phoneCountryCode);
+                          return selected ? (selected.maxLength || selected.length || 15) : 15;
+                        })()
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Gender</label>
                   <select required value={addForm.gender} onChange={e => setAddForm(p => ({ ...p, gender: e.target.value }))} className="form-select">

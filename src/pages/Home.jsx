@@ -574,7 +574,7 @@ export default function Home() {
   const roadmap = [
     { step: '01', title: 'Submit Application',   desc: 'Fill personal details, academic scores, select your engineering branch.' },
     { step: '02', title: 'Upload Documents',      desc: 'Upload 10th, 12th marksheets, and valid government ID proof.' },
-    { step: '03', title: 'Registrar Evaluation',  desc: 'Admission committee reviews credentials and validates uploaded documents.' },
+    { step: '03', title: 'College Evaluation',  desc: 'Admission committee reviews credentials and validates uploaded documents.' },
     { step: '04', title: 'Student ID Assigned',   desc: 'Approved students are auto-enrolled with a unique TMEC Student ID.' },
   ];
 
@@ -806,7 +806,7 @@ export default function Home() {
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '36px' }}>
-                {['Encrypted & secure document processing', 'Automated TMEC Student ID generation', 'Real-time application status tracking', '24-hour registrar response SLA'].map((f) => (
+                {['Encrypted & secure document processing', 'Automated TMEC Student ID generation', 'Real-time application status tracking', '24-hour college response SLA'].map((f) => (
                   <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px' }}>
                     <CheckCircle2 size={18} color="var(--color-emerald)" style={{ flexShrink: 0 }} />
                     <span style={{ color: 'var(--text-secondary)' }}>{f}</span>

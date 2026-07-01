@@ -29,6 +29,28 @@ const inputStyle = (hasError) => ({
   boxShadow: hasError ? '0 0 0 3px rgba(239,68,68,0.12)' : undefined,
 });
 
+const countryCodes = [
+  { code: '+91', name: 'India', flag: '🇮🇳', length: 10, placeholder: '98765 43210' },
+  { code: '+1', name: 'US / Canada', flag: '🇺🇸', length: 10, placeholder: '201 555 0123' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', length: 10, placeholder: '7700 900077' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', length: 9, placeholder: '412 345 678' },
+  { code: '+86', name: 'China', flag: '🇨🇳', length: 11, placeholder: '138 1234 5678' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', length: 9, placeholder: '50 123 4567' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', length: 8, placeholder: '8123 4567' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', minLength: 10, maxLength: 11, placeholder: '170 1234567' },
+  { code: '+33', name: 'France', flag: '🇫🇷', length: 9, placeholder: '6 1234 5678' },
+  { code: '+92', name: 'Pakistan', flag: '🇵🇰', length: 10, placeholder: '300 1234567' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', length: 10, placeholder: '1712 345678' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', length: 9, placeholder: '71 234 5678' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', length: 10, placeholder: '985 1012345' },
+  { code: '+60', name: 'Malaysia', flag: '🇲🇾', minLength: 9, maxLength: 10, placeholder: '12 345 6789' },
+  { code: '+62', name: 'Indonesia', flag: '🇮🇩', minLength: 9, maxLength: 12, placeholder: '812 3456 7890' },
+  { code: '+39', name: 'Italy', flag: '🇮🇹', length: 10, placeholder: '312 345 6789' },
+  { code: '+34', name: 'Spain', flag: '🇪🇸', length: 9, placeholder: '612 345 678' },
+  { code: '+27', name: 'South Africa', flag: '🇿🇦', length: 9, placeholder: '82 123 4567' },
+  { code: 'Other', name: 'Other', flag: '🌐', minLength: 7, maxLength: 15, placeholder: 'Enter phone' },
+];
+
 export default function Apply() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -40,11 +62,13 @@ export default function Apply() {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    phoneCountryCode: '+91',
     phone: '',
     address: '',
     dob: '',
     gender: '',
     parentName: '',
+    parentPhoneCountryCode: '+91',
     parentPhone: '',
     departmentId: initialDept,
   });
@@ -74,13 +98,17 @@ export default function Apply() {
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
 
   useEffect(() => {
-    axios
-      .get(`${API_BASE}/departments`)
-      .then((res) => {
-        setDepartments(res.data);
-        setLoadingDepts(false);
-      })
-      .catch(() => {
+    const fetchDepartments = async () => {
+      try {
+        const { data, error } = await supabase.from('departments').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setDepartments(data);
+        } else {
+          throw new Error('No departments found');
+        }
+      } catch (err) {
+        console.error('Error fetching departments:', err);
         setDepartments([
           { id: 1, name: 'Computer Science Engineering' },
           { id: 2, name: 'Artificial Intelligence & Machine Learning' },
@@ -88,16 +116,58 @@ export default function Apply() {
           { id: 4, name: 'Mechanical Engineering' },
           { id: 5, name: 'Civil Engineering' },
         ]);
+      } finally {
         setLoadingDepts(false);
-      });
+      }
+    };
+    
+    fetchDepartments();
   }, []);
 
   /* ── Input change: clear field error on edit ─────────────────────── */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === 'phoneCountryCode') {
+      const selected = countryCodes.find(c => c.code === value);
+      const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+      setFormData((prev) => ({
+        ...prev,
+        phoneCountryCode: value,
+        phone: prev.phone.slice(0, maxLen)
+      }));
+    } else if (name === 'parentPhoneCountryCode') {
+      const selected = countryCodes.find(c => c.code === value);
+      const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+      setFormData((prev) => ({
+        ...prev,
+        parentPhoneCountryCode: value,
+        parentPhone: prev.parentPhone.slice(0, maxLen)
+      }));
+    } else if (name === 'tenthPercentage' || name === 'twelfthPercentage') {
+      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
     if (fieldErrors[name]) {
       setFieldErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  /* ── Blur: trim string and validate field ───────────────────────── */
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    if (typeof value === 'string') {
+      const trimmedValue = value.trim();
+      if (value !== trimmedValue) {
+        setFormData((prev) => ({ ...prev, [name]: trimmedValue }));
+      }
+      
+      const tempFormData = { ...formData, [name]: trimmedValue };
+      const errs = buildErrors(tempFormData);
+      
+      setFieldErrors((prev) => ({ ...prev, [name]: errs[name] || '' }));
     }
   };
 
@@ -116,16 +186,16 @@ export default function Apply() {
     }
   };
 
-  /* ── Allow only digits (+) in phone fields ───────────────────────── */
-  const handlePhoneKeyDown = (e) => {
+  /* ── Allow only digits in phone fields (allow + only for 'Other') ── */
+  const handlePhoneKeyDown = (e, countryCode) => {
     const ctrl = e.ctrlKey || e.metaKey;
     if (
       ctrl ||
       ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)
     )
       return;
-    // Allow + only at position 0
-    if (e.key === '+' && e.target.selectionStart === 0) return;
+    // Allow + only at position 0 if country code is 'Other'
+    if (countryCode === 'Other' && e.key === '+' && e.target.selectionStart === 0) return;
     // Block anything that isn't a digit
     if (!/\d/.test(e.key)) {
       e.preventDefault();
@@ -161,31 +231,111 @@ export default function Apply() {
   };
 
   /* ─── Per-field validation → returns errors object ──────────────── */
-  const buildErrors = () => {
+  const buildErrors = (data = formData) => {
     const errs = {};
-    if (!formData.fullName.trim()) errs.fullName = 'Full Name is required';
-    else if (/\d/.test(formData.fullName)) errs.fullName = 'Name must not contain numbers';
+    if (!data.fullName.trim()) errs.fullName = 'Full Name is required';
+    else if (/\d/.test(data.fullName)) errs.fullName = 'Name must not contain numbers';
 
-    if (!formData.email.trim()) errs.email = 'Email Address is required';
-    else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(formData.email))
+    if (!data.email.trim()) errs.email = 'Email Address is required';
+    else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(data.email))
       errs.email = 'Enter a valid email address';
 
-    if (!formData.phone.trim()) errs.phone = 'Phone Number is required';
-    else if (!/^\+?[0-9]{10,15}$/.test(formData.phone))
-      errs.phone = 'Phone must be 10–15 digits';
+    // Student phone validation
+    const studentCountry = countryCodes.find(c => c.code === data.phoneCountryCode);
+    const cleanPhone = data.phone.trim();
+    if (!cleanPhone) {
+      errs.phone = 'Phone Number is required';
+    } else {
+      if (data.phoneCountryCode === 'Other') {
+        if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+          errs.phone = 'Phone must be between 7 and 15 digits';
+        }
+      } else {
+        if (!/^[0-9]+$/.test(cleanPhone)) {
+          errs.phone = 'Phone number must contain only digits';
+        } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+          errs.phone = `Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`;
+        } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+          errs.phone = `Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`;
+        }
+      }
+    }
 
-    if (!formData.address.trim()) errs.address = 'Residential Address is required';
-    if (!formData.dob) errs.dob = 'Date of Birth is required';
-    if (!formData.gender) errs.gender = 'Gender is required';
+    if (!data.address.trim()) errs.address = 'Residential Address is required';
+    else if (data.address.length > 200) errs.address = 'Address must not exceed 200 characters';
+    if (!data.dob) {
+      errs.dob = 'Date of Birth is required';
+    } else {
+      const birthDate = new Date(data.dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      if (age < 17) {
+        errs.dob = 'You must be at least 17 years old to apply for admission';
+      }
+    }
+    if (!data.gender) errs.gender = 'Gender is required';
 
-    if (!formData.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
-    else if (/\d/.test(formData.parentName)) errs.parentName = 'Name must not contain numbers';
+    if (!data.aadhaarNumber.trim()) {
+      errs.aadhaarNumber = 'Aadhaar Number is required';
+    } else if (!/^\d{12}$/.test(data.aadhaarNumber)) {
+      errs.aadhaarNumber = 'Aadhaar Number must be exactly 12 digits';
+    }
 
-    if (!formData.parentPhone.trim()) errs.parentPhone = 'Parent Contact Number is required';
-    else if (!/^\+?[0-9]{10,15}$/.test(formData.parentPhone))
-      errs.parentPhone = 'Phone must be 10–15 digits';
+    if (!data.state.trim()) {
+      errs.state = 'State is required';
+    }
 
-    if (!formData.departmentId) errs.departmentId = 'Please select a department';
+    if (!data.tenthPercentage.trim()) {
+      errs.tenthPercentage = '10th Percentage is required';
+    } else {
+      const val = parseFloat(data.tenthPercentage);
+      if (isNaN(val) || val < 0 || val > 100) {
+        errs.tenthPercentage = 'Percentage must be between 0 and 100';
+      } else if (!/^\d+(\.\d{1,2})?$/.test(data.tenthPercentage.trim())) {
+        errs.tenthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
+      }
+    }
+
+    if (!data.twelfthPercentage.trim()) {
+      errs.twelfthPercentage = '12th Percentage is required';
+    } else {
+      const val = parseFloat(data.twelfthPercentage);
+      if (isNaN(val) || val < 0 || val > 100) {
+        errs.twelfthPercentage = 'Percentage must be between 0 and 100';
+      } else if (!/^\d+(\.\d{1,2})?$/.test(data.twelfthPercentage.trim())) {
+        errs.twelfthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
+      }
+    }
+
+    if (!data.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
+    else if (/\d/.test(data.parentName)) errs.parentName = 'Name must not contain numbers';
+
+    // Parent phone validation
+    const parentCountry = countryCodes.find(c => c.code === data.parentPhoneCountryCode);
+    const cleanParentPhone = data.parentPhone.trim();
+    if (!cleanParentPhone) {
+      errs.parentPhone = 'Parent Contact Number is required';
+    } else {
+      if (data.parentPhoneCountryCode === 'Other') {
+        if (!/^\+?[0-9]{7,15}$/.test(cleanParentPhone)) {
+          errs.parentPhone = 'Phone must be between 7 and 15 digits';
+        }
+      } else {
+        if (!/^[0-9]+$/.test(cleanParentPhone)) {
+          errs.parentPhone = 'Phone number must contain only digits';
+        } else if (parentCountry.length && cleanParentPhone.length !== parentCountry.length) {
+          errs.parentPhone = `Phone number must be exactly ${parentCountry.length} digits for ${parentCountry.name} (${parentCountry.code})`;
+        } else if (parentCountry.minLength && (cleanParentPhone.length < parentCountry.minLength || cleanParentPhone.length > parentCountry.maxLength)) {
+          errs.parentPhone = `Phone number must be between ${parentCountry.minLength} and ${parentCountry.maxLength} digits for ${parentCountry.name} (${parentCountry.code})`;
+        }
+      }
+    }
+
+    if (!data.departmentId) errs.departmentId = 'Please select a department';
     if (!files.marksheet10) errs.marksheet10 = '10th Marksheet is required';
     if (!files.marksheet12) errs.marksheet12 = '12th Marksheet is required';
     if (!files.idProof) errs.idProof = 'Government ID Proof is required';
@@ -197,7 +347,20 @@ export default function Apply() {
   /* ─── Submit ─────────────────────────────────────────────────────── */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errs = buildErrors();
+    
+    // Trim all string values in formData
+    const trimmedData = {};
+    for (const key in formData) {
+      if (typeof formData[key] === 'string') {
+        trimmedData[key] = formData[key].trim();
+      } else {
+        trimmedData[key] = formData[key];
+      }
+    }
+    
+    setFormData(trimmedData);
+
+    const errs = buildErrors(trimmedData);
 
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
@@ -210,28 +373,75 @@ export default function Apply() {
     setErrorMsg('');
     setSubmitting(true);
 
-    const uploadData = new FormData();
-    Object.keys(formData).forEach((key) => uploadData.append(key, formData[key]));
-    uploadData.append('marksheet10', files.marksheet10);
-    uploadData.append('marksheet12', files.marksheet12);
-    uploadData.append('idProof', files.idProof);
+    const submitApplication = async () => {
+      try {
+        // 1. Generate unique Application ID
+        const year = new Date().getFullYear();
+        const random = Math.floor(1000 + Math.random() * 9000);
+        const appId = `APP-${year}-${random}`;
 
-    axios
-      .post(`${API_BASE}/admissions/apply`, uploadData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      .then((res) => {
-        setApplicationId(res.data.applicationId);
+        // Helper function for uploading to Supabase Storage
+        const uploadFile = async (file, type) => {
+          const fileExt = file.name.split('.').pop();
+          const filePath = `${appId}/${type}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file);
+          if (uploadError) throw uploadError;
+          
+          const { data } = supabase.storage.from('documents').getPublicUrl(filePath);
+          return data.publicUrl;
+        };
+
+        // 2. Upload Documents
+        const marksheet10Url = await uploadFile(files.marksheet10, 'marksheet10');
+        const marksheet12Url = await uploadFile(files.marksheet12, 'marksheet12');
+        const idProofUrl = await uploadFile(files.idProof, 'idProof');
+
+        const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
+        const combinedParentPhone = trimmedData.parentPhoneCountryCode === 'Other' ? trimmedData.parentPhone : trimmedData.parentPhoneCountryCode + trimmedData.parentPhone;
+
+        // 3. Insert Application Data
+        const { error: appError } = await supabase.from('applications').insert([{
+          id: appId,
+          full_name: trimmedData.fullName,
+          email: trimmedData.email,
+          phone: combinedPhone,
+          address: trimmedData.address,
+          dob: trimmedData.dob,
+          gender: trimmedData.gender,
+          parent_name: trimmedData.parentName,
+          parent_phone: combinedParentPhone,
+          department_id: parseInt(trimmedData.departmentId),
+          aadhaar_number: trimmedData.aadhaarNumber,
+          state: trimmedData.state,
+          tenth_percentage: parseFloat(trimmedData.tenthPercentage),
+          twelfth_percentage: parseFloat(trimmedData.twelfthPercentage),
+          status: 'Pending'
+        }]);
+
+        if (appError) throw appError;
+
+        // 4. Insert Document Records
+        const { error: docsError } = await supabase.from('documents').insert([
+          { application_id: appId, document_type: '10th Marksheet', file_path: marksheet10Url },
+          { application_id: appId, document_type: '12th Marksheet', file_path: marksheet12Url },
+          { application_id: appId, document_type: 'ID Proof', file_path: idProofUrl },
+        ]);
+
+        if (docsError) throw docsError;
+
+        setApplicationId(appId);
         setIsSuccessOpen(true);
-        setSubmitting(false);
-      })
-      .catch((err) => {
-        setErrorMsg(
-          err.response?.data?.message || 'Server connection error. Please try again later.'
-        );
-        setSubmitting(false);
+      } catch (err) {
+        console.error(err);
+        setErrorMsg(err.message || 'Error submitting application to Supabase.');
         window.scrollTo({ top: 150, behavior: 'smooth' });
-      });
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    submitApplication();
   };
 
   /* ─── Render ─────────────────────────────────────────────────────── */
@@ -297,15 +507,13 @@ export default function Apply() {
               <div className="form-group">
                 <label className="form-label">
                   Full Name <span style={{ color: '#ef4444' }}>*</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '6px' }}>
-                    (As per High School Certificate)
-                  </span>
                 </label>
                 <input
                   type="text"
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   onKeyDown={handleNameKeyDown}
                   className="form-input"
                   placeholder="John Doe"
@@ -325,6 +533,7 @@ export default function Apply() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     className="form-input"
                     placeholder="john@example.com"
                     style={inputStyle(fieldErrors.email)}
@@ -336,17 +545,40 @@ export default function Apply() {
                   <label className="form-label">
                     Phone Number <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    onKeyDown={handlePhoneKeyDown}
-                    className="form-input"
-                    placeholder="9876543210"
-                    maxLength={15}
-                    style={inputStyle(fieldErrors.phone)}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      name="phoneCountryCode"
+                      value={formData.phoneCountryCode}
+                      onChange={handleInputChange}
+                      className="form-select"
+                      style={{ width: '110px', flexShrink: 0 }}
+                    >
+                      {countryCodes.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      onKeyDown={(e) => handlePhoneKeyDown(e, formData.phoneCountryCode)}
+                      className="form-input"
+                      placeholder={
+                        countryCodes.find((c) => c.code === formData.phoneCountryCode)?.placeholder || 'Enter phone'
+                      }
+                      maxLength={
+                        (() => {
+                          const selected = countryCodes.find(c => c.code === formData.phoneCountryCode);
+                          return selected ? (selected.maxLength || selected.length || 15) : 15;
+                        })()
+                      }
+                      style={inputStyle(fieldErrors.phone)}
+                    />
+                  </div>
                   <FieldError msg={fieldErrors.phone} />
                 </div>
               </div>
@@ -390,20 +622,77 @@ export default function Apply() {
 
               {/* Address */}
               <div className="form-group">
-                <label className="form-label">
-                  Full Residential Address <span style={{ color: '#ef4444' }}>*</span>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Full Residential Address <span style={{ color: '#ef4444' }}>*</span></span>
+                  <span style={{ fontSize: '11px', color: formData.address.length > 180 ? '#ef4444' : 'var(--text-muted)', fontWeight: 400 }}>
+                    {formData.address.length}/200
+                  </span>
                 </label>
                 <textarea
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   rows="3"
                   className="form-textarea"
-                  placeholder="Street Address, City, State, ZIP Code"
+                  placeholder="Street Address, City, ZIP Code"
+                  maxLength={200}
                   style={inputStyle(fieldErrors.address)}
                 />
                 <FieldError msg={fieldErrors.address} />
               </div>
+
+              {/* State of Residence & Aadhaar Number */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+                <div className="form-group">
+                  <label className="form-label">
+                    State of Residence <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select
+                    name="state"
+                    value={formData.state}
+                    onChange={handleInputChange}
+                    className="form-select"
+                    style={inputStyle(fieldErrors.state)}
+                  >
+                    <option value="">Select State</option>
+                    {[
+                      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa',
+                      'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala',
+                      'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland',
+                      'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+                      'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands',
+                      'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
+                      'Ladakh', 'Lakshadweep', 'Puducherry'
+                    ].map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                  <FieldError msg={fieldErrors.state} />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Aadhaar Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="aadhaarNumber"
+                    value={formData.aadhaarNumber}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    onKeyDown={(e) => {
+                      const ctrl = e.ctrlKey || e.metaKey;
+                      if (ctrl || ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                      if (!/\d/.test(e.key)) e.preventDefault();
+                    }}
+                    className="form-input"
+                    placeholder="12-digit Aadhaar Number"
+                    maxLength={12}
+                    style={inputStyle(fieldErrors.aadhaarNumber)}
+                  />
+                  <FieldError msg={fieldErrors.aadhaarNumber} />
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -430,6 +719,7 @@ export default function Apply() {
                   name="parentName"
                   value={formData.parentName}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   onKeyDown={handleNameKeyDown}
                   className="form-input"
                   placeholder="Richard Doe"
@@ -442,23 +732,46 @@ export default function Apply() {
                 <label className="form-label">
                   Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="tel"
-                  name="parentPhone"
-                  value={formData.parentPhone}
-                  onChange={handleInputChange}
-                  onKeyDown={handlePhoneKeyDown}
-                  className="form-input"
-                  placeholder="9876543211"
-                  maxLength={15}
-                  style={inputStyle(fieldErrors.parentPhone)}
-                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    name="parentPhoneCountryCode"
+                    value={formData.parentPhoneCountryCode}
+                    onChange={handleInputChange}
+                    className="form-select"
+                    style={{ width: '110px', flexShrink: 0 }}
+                  >
+                    {countryCodes.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    name="parentPhone"
+                    value={formData.parentPhone}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    onKeyDown={(e) => handlePhoneKeyDown(e, formData.parentPhoneCountryCode)}
+                    className="form-input"
+                    placeholder={
+                      countryCodes.find((c) => c.code === formData.parentPhoneCountryCode)?.placeholder || 'Enter phone'
+                    }
+                    maxLength={
+                      (() => {
+                        const selected = countryCodes.find(c => c.code === formData.parentPhoneCountryCode);
+                        return selected ? (selected.maxLength || selected.length || 15) : 15;
+                      })()
+                    }
+                    style={inputStyle(fieldErrors.parentPhone)}
+                  />
+                </div>
                 <FieldError msg={fieldErrors.parentPhone} />
               </div>
             </div>
           </div>
 
-          {/* ── Section 3: Department Preference ────────────────────── */}
+          {/* ── Section 3: Academic Background ────────────────────────── */}
           <div>
             <h3
               style={{
@@ -468,7 +781,61 @@ export default function Apply() {
                 display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
-              <span style={{ color: 'var(--color-royal)' }}>03.</span> Department Preference
+              <span style={{ color: 'var(--color-royal)' }}>03.</span> Academic Background
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              
+              {/* 10th Percentage */}
+              <div className="form-group">
+                <label className="form-label">
+                  10th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="tenthPercentage"
+                  value={formData.tenthPercentage}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="form-input"
+                  placeholder="e.g. 92.50"
+                  style={inputStyle(fieldErrors.tenthPercentage)}
+                />
+                <FieldError msg={fieldErrors.tenthPercentage} />
+              </div>
+
+              {/* 12th Percentage */}
+              <div className="form-group">
+                <label className="form-label">
+                  12th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="twelfthPercentage"
+                  value={formData.twelfthPercentage}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="form-input"
+                  placeholder="e.g. 88.40"
+                  style={inputStyle(fieldErrors.twelfthPercentage)}
+                />
+                <FieldError msg={fieldErrors.twelfthPercentage} />
+              </div>
+
+            </div>
+          </div>
+
+          {/* ── Section 4: Department Preference ────────────────────── */}
+          <div>
+            <h3
+              style={{
+                fontSize: '18px', fontWeight: '700',
+                borderBottom: '2px solid var(--border-color)',
+                paddingBottom: '8px', marginBottom: '20px',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}
+            >
+              <span style={{ color: 'var(--color-royal)' }}>04.</span> Department Preference
             </h3>
 
             <div className="form-group">
@@ -495,7 +862,7 @@ export default function Apply() {
             </div>
           </div>
 
-          {/* ── Section 4: Document Uploads ──────────────────────────── */}
+          {/* ── Section 5: Document Uploads ──────────────────────────── */}
           <div>
             <h3
               style={{
@@ -505,7 +872,7 @@ export default function Apply() {
                 display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
-              <span style={{ color: 'var(--color-royal)' }}>04.</span> Upload Documents
+              <span style={{ color: 'var(--color-royal)' }}>05.</span> Upload Documents
             </h3>
 
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>

@@ -332,11 +332,32 @@ def handle_student(current_user, student_id):
             dob = data.get('dob')
             gender = data.get('gender')
             dept_id = data.get('department_id')
+            aadhaar_number = data.get('aadhaar_number')
+            state = data.get('state')
+            tenth_percentage = data.get('tenth_percentage')
+            twelfth_percentage = data.get('twelfth_percentage')
 
             if not all([full_name, email, phone, dob, gender, dept_id]):
                 return jsonify({'message': 'All profile fields are required'}), 400
 
+            if not aadhaar_number or not isinstance(aadhaar_number, str) or not aadhaar_number.isdigit() or len(aadhaar_number) != 12:
+                return jsonify({'message': 'Aadhaar Number must be exactly 12 digits'}), 400
+
+            try:
+                birth_date = datetime.datetime.strptime(dob, '%Y-%m-%d').date()
+                today = datetime.date.today()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                if age < 17:
+                    return jsonify({'message': 'Student must be at least 17 years old'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'message': 'Invalid Date of Birth format'}), 400
+
             # Verify student exists
+            tenth_str = str(tenth_percentage).strip()
+            twelfth_str = str(twelfth_percentage).strip()
+            import re
+            if not re.match(r'^\d+(\.\d{1,2})?$', tenth_str) or not re.match(r'^\d+(\.\d{1,2})?$', twelfth_str):
+                return jsonify({'message': 'Academic percentages must have at most 2 decimal places (e.g. 78.90)'}), 400
             student = db.execute_read_one("SELECT * FROM students WHERE id = %s", (student_id,))
             if not student:
                 return jsonify({'message': 'Student not found'}), 404
@@ -352,9 +373,10 @@ def handle_student(current_user, student_id):
             # Keep application details in sync
             db.execute_write(
                 """UPDATE applications 
-                   SET full_name = %s, email = %s, phone = %s, dob = %s, gender = %s, department_id = %s 
+                   SET full_name = %s, email = %s, phone = %s, dob = %s, gender = %s, department_id = %s,
+                       aadhaar_number = %s, state = %s, tenth_percentage = %s, twelfth_percentage = %s
                    WHERE id = %s""",
-                (full_name, email, phone, dob, gender, int(dept_id), student['application_id'])
+                (full_name, email, phone, dob, gender, int(dept_id), aadhaar_number, state, tenth_percentage, twelfth_percentage, student['application_id'])
             )
 
             return jsonify({'message': 'Student profile updated successfully'}), 200

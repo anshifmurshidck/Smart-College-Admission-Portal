@@ -258,19 +258,10 @@ export default function AdminLayout() {
           </button>
 
           <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', flex: 1 }} className="md:block">
-            Registrar Management System
+            College Management System
           </span>
 
-          {/* Quick info display */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              Session: {new Date().getFullYear()}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#10b981' }}>ONLINE</span>
-            </div>
-          </div>
+
         </header>
 
         {/* Scrollable Main Content Pane */}

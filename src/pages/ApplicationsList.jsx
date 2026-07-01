@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { 
   Search, 
   Filter, 
@@ -15,7 +15,10 @@ import {
   Check, 
   X,
   FileCheck,
-  Award
+  Award,
+  ChevronLeft,
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -23,6 +26,8 @@ export default function ApplicationsList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
   
   // Search & Filter state
   const [search, setSearch] = useState('');
@@ -40,6 +45,7 @@ export default function ApplicationsList() {
   const [newStatus, setNewStatus] = useState('');
   const [comments, setComments] = useState('');
   const [submittingStatus, setSubmittingStatus] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
 
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
   const SERVER_HOST = 'http://localhost:5000'; // For file serving
@@ -47,84 +53,225 @@ export default function ApplicationsList() {
   const loadApplications = () => {
     setLoading(true);
     setErrorMsg('');
-    const token = localStorage.getItem('adminToken');
     
-    axios.get(`${API_BASE}/admin/applications`, {
-      params: {
-        search,
-        status: statusFilter,
-        departmentId: deptFilter
-      },
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setApplications(res.data);
-      setLoading(false);
-    })
-    .catch((err) => {
+    try {
+      let query = supabase
+        .from('applications')
+        .select(`
+          id, 
+          full_name, 
+          email, 
+          status,
+          assigned_student_id,
+          department:departments(name, code)
+        `);
+      
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,id.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+      if (deptFilter) {
+        query = query.eq('department_id', deptFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setApplications(data);
+    } catch (err) {
       console.error(err);
       setErrorMsg('Failed to retrieve applications database.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   useEffect(() => {
     loadApplications();
     
-    // Load departments
-    axios.get(`${API_BASE}/departments`)
-      .then(res => setDepartments(res.data))
-      .catch(err => console.error("Error loading departments for filter", err));
+    const loadDepts = async () => {
+      const { data } = await supabase.from('departments').select('*');
+      if (data) setDepartments(data);
+    };
+    loadDepts();
+    setPage(1);
   }, [search, statusFilter, deptFilter]);
 
-  const viewApplicationDetails = (appId) => {
+  const viewApplicationDetails = async (appId) => {
     setSelectedApp(appId);
     setModalLoading(true);
     setModalError('');
     setModalDetails(null);
     setComments('');
     
-    const token = localStorage.getItem('adminToken');
-    
-    axios.get(`${API_BASE}/admin/applications/${appId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setModalDetails(res.data);
-      setNewStatus(res.data.application.status);
-      setModalLoading(false);
-    })
-    .catch((err) => {
+    try {
+      const { data: appData, error: appError } = await supabase
+        .from('applications')
+        .select(`*, department:departments(name, code)`)
+        .eq('id', appId)
+        .single();
+      
+      if (appError) throw appError;
+
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('application_id', appId);
+        
+      if (docsError) throw docsError;
+
+      const { data: timelineData, error: timelineError } = await supabase
+        .from('status_history')
+        .select('*')
+        .eq('application_id', appId)
+        .order('updated_at', { ascending: true });
+
+      if (timelineError) throw timelineError;
+
+      let timeline = timelineData || [];
+      if (timeline.length === 0) {
+        timeline = [{
+          status: appData.status,
+          updated_at: appData.created_at,
+          comments: appData.status === 'Pending' ? 'Application successfully submitted.' : 'Application status updated.',
+          updater_name: 'System Auto'
+        }];
+      }
+
+      let docs = docsData || [];
+      if (docs.length === 0) {
+        const docTypes = [
+          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
+          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
+          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
+        ];
+        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
+        
+        docs = await Promise.all(docTypes.map(async (doc) => {
+          let foundUrl = null;
+          for (const ext of exts) {
+            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appId}/${doc.name}${ext}`).data.publicUrl;
+            try {
+              const res = await fetch(publicUrl, { method: 'HEAD' });
+              if (res.ok) {
+                foundUrl = publicUrl;
+                break;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+          return {
+            id: foundUrl ? `${appId}-${doc.id}` : `mock-${doc.id}`,
+            document_type: doc.title,
+            file_path: foundUrl || doc.fallback
+          };
+        }));
+      }
+
+      const formattedDetails = {
+        application: {
+          ...appData,
+          department_code: appData.department.code,
+          department_name: appData.department.name
+        },
+        documents: docs,
+        timeline: timeline
+      };
+
+      setModalDetails(formattedDetails);
+      setNewStatus(appData.status);
+    } catch (err) {
       console.error(err);
       setModalError('Failed to retrieve application file details.');
+    } finally {
       setModalLoading(false);
-    });
+    }
   };
 
-  const handleStatusSubmit = (e) => {
+  const handleStatusSubmit = async (e) => {
     e.preventDefault();
     if (!newStatus) return;
 
     setSubmittingStatus(true);
-    const token = localStorage.getItem('adminToken');
 
-    axios.post(`${API_BASE}/admin/applications/${selectedApp}/status`, {
-      status: newStatus,
-      comments: comments
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setSubmittingStatus(false);
-      // Reload lists and refresh modal view
+    try {
+      let studentId = modalDetails.application.assigned_student_id;
+
+      if (newStatus === 'Approved' && !studentId) {
+        const year = new Date().getFullYear();
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        studentId = `STU-${year}-${rand}`;
+      }
+
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', selectedApp);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: selectedApp,
+          status: newStatus,
+          comments: comments || `Status changed to ${newStatus}`
+        }]);
+
+      if (logError) throw logError;
+
       loadApplications();
       viewApplicationDetails(selectedApp);
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Error updating status');
+      alert(err.message || 'Error updating status');
+    } finally {
       setSubmittingStatus(false);
-    });
+    }
+  };
+
+  const updateApplicationStatus = async (appId, newStatus) => {
+    const app = applications.find(a => a.id === appId);
+    if (!app) return;
+
+    setActionLoading(prev => ({ ...prev, [appId]: newStatus }));
+    try {
+      let studentId = null;
+
+      if (newStatus === 'Approved') {
+        studentId = app.assigned_student_id || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', appId);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: appId,
+          status: newStatus,
+          comments: `Status updated to ${newStatus} directly from application list.`
+        }]);
+
+      if (logError) throw logError;
+
+      await loadApplications();
+
+      if (selectedApp === appId) {
+        viewApplicationDetails(appId);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Error updating status');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [appId]: null }));
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -152,6 +299,9 @@ export default function ApplicationsList() {
       </span>
     );
   };
+
+  const totalPages = Math.max(1, Math.ceil(applications.length / PAGE_SIZE));
+  const paginatedApplications = applications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -221,7 +371,8 @@ export default function ApplicationsList() {
             <p style={{ fontSize: '16px', fontWeight: '500' }}>No applications match active filter criteria.</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600' }}>
                 <th style={{ padding: '12px 16px' }}>App ID</th>
@@ -233,7 +384,7 @@ export default function ApplicationsList() {
               </tr>
             </thead>
             <tbody>
-              {applications.map((app) => (
+              {paginatedApplications.map((app) => (
                 <tr 
                   key={app.id} 
                   style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
@@ -245,21 +396,127 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>{app.id}</td>
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
-                  <td style={{ padding: '16px' }}>{app.department_code}</td>
+                  <td style={{ padding: '16px' }}>{app.department?.name || '-'}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
-                    <button 
-                      className="btn-ripple btn-secondary" 
-                      style={{ padding: '6px 12px', fontSize: '12px' }}
-                      onClick={(e) => { e.stopPropagation(); viewApplicationDetails(app.id); }}
-                    >
-                      Review
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button 
+                        className="btn-ripple" 
+                        disabled={actionLoading[app.id] || app.status === 'Approved'}
+                        style={{ 
+                          padding: '6px 14px', 
+                          fontSize: '11px', 
+                          fontWeight: '800',
+                          borderRadius: '9999px',
+                          border: app.status === 'Rejected' ? '1px solid rgba(16, 185, 129, 0.2)' : 'none',
+                          backgroundColor: app.status === 'Approved' 
+                            ? '#10b981' 
+                            : (app.status === 'Rejected' ? 'rgba(16, 185, 129, 0.06)' : '#10b981'),
+                          color: app.status === 'Rejected' ? 'rgba(16, 185, 129, 0.6)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: (actionLoading[app.id] || app.status === 'Approved') ? 'default' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: app.status === 'Approved' ? 'none' : '0 2px 6px rgba(16, 185, 129, 0.2)'
+                        }}
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          updateApplicationStatus(app.id, 'Approved');
+                        }}
+                        onMouseOver={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Approved' && app.status !== 'Rejected') {
+                            e.currentTarget.style.backgroundColor = '#059669';
+                            e.currentTarget.style.transform = 'scale(1.04)';
+                          } else if (app.status === 'Rejected') {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Approved' && app.status !== 'Rejected') {
+                            e.currentTarget.style.backgroundColor = '#10b981';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          } else if (app.status === 'Rejected') {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.06)';
+                          }
+                        }}
+                      >
+                        {actionLoading[app.id] === 'Approved' ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Check size={12} style={{ strokeWidth: 3 }} />
+                        )}
+                        ACCEPT
+                      </button>
+
+                      <button 
+                        className="btn-ripple" 
+                        disabled={actionLoading[app.id] || app.status === 'Rejected'}
+                        style={{ 
+                          padding: '6px 14px', 
+                          fontSize: '11px', 
+                          fontWeight: '800',
+                          borderRadius: '9999px',
+                          border: app.status === 'Approved' ? '1px solid rgba(239, 68, 68, 0.2)' : 'none',
+                          backgroundColor: app.status === 'Rejected' 
+                            ? '#ef4444' 
+                            : (app.status === 'Approved' ? 'rgba(239, 68, 68, 0.06)' : '#ef4444'),
+                          color: app.status === 'Approved' ? 'rgba(239, 68, 68, 0.6)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: (actionLoading[app.id] || app.status === 'Rejected') ? 'default' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: app.status === 'Rejected' ? 'none' : '0 2px 6px rgba(239, 68, 68, 0.2)'
+                        }}
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          updateApplicationStatus(app.id, 'Rejected');
+                        }}
+                        onMouseOver={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Rejected' && app.status !== 'Approved') {
+                            e.currentTarget.style.backgroundColor = '#dc2626';
+                            e.currentTarget.style.transform = 'scale(1.04)';
+                          } else if (app.status === 'Approved') {
+                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!actionLoading[app.id] && app.status !== 'Rejected' && app.status !== 'Approved') {
+                            e.currentTarget.style.backgroundColor = '#ef4444';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          } else if (app.status === 'Approved') {
+                            e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)';
+                          }
+                        }}
+                      >
+                        {actionLoading[app.id] === 'Rejected' ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <X size={12} style={{ strokeWidth: 3 }} />
+                        )}
+                        REJECT
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <span>Page {page} of {totalPages} — {applications.length} records</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+          </>
         )}
       </div>
 
@@ -346,6 +603,18 @@ export default function ApplicationsList() {
                       <MapPin size={15} style={{ color: 'var(--text-muted)' }} />
                       <span>Address: {modalDetails.application.address}</span>
                     </div>
+                    {modalDetails.application.state && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '600' }}>State:</span>
+                        <span>{modalDetails.application.state}</span>
+                      </div>
+                    )}
+                    {modalDetails.application.aadhaar_number && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '600' }}>Aadhaar:</span>
+                        <span>{modalDetails.application.aadhaar_number}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -359,6 +628,19 @@ export default function ApplicationsList() {
                     <div>Phone: {modalDetails.application.parent_phone}</div>
                   </div>
                 </div>
+
+                {/* Academic Background */}
+                {(modalDetails.application.tenth_percentage !== undefined && modalDetails.application.tenth_percentage !== null) && (
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '16px' }}>
+                      Academic Background
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13px' }}>
+                      <div>10th Percentage: <strong>{modalDetails.application.tenth_percentage}%</strong></div>
+                      <div>12th Percentage: <strong>{modalDetails.application.twelfth_percentage}%</strong></div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Applied Course info */}
                 <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', padding: '16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-primary)' }}>
@@ -403,14 +685,23 @@ export default function ApplicationsList() {
                           )}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span style={{ fontSize: '12px', fontWeight: '700' }}>{doc.document_type}</span>
-                            <a 
-                              href={fileUrl} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
-                            >
-                              Open File <ExternalLink size={12} />
-                            </a>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <a 
+                                href={fileUrl} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
+                              >
+                                Open File <ExternalLink size={12} />
+                              </a>
+                              <a 
+                                href={fileUrl} 
+                                download={doc.document_type}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-royal)', fontWeight: '600' }}
+                              >
+                                Download <Download size={12} />
+                              </a>
+                            </div>
                           </div>
                         </div>
                       );
@@ -462,7 +753,7 @@ export default function ApplicationsList() {
                         disabled={submittingStatus}
                         style={{ padding: '12px', fontSize: '14px', display: 'flex', justifyContent: 'center', gap: '8px', opacity: submittingStatus ? 0.7 : 1 }}
                       >
-                        {submittingStatus ? 'Updating Audit Log...' : 'Update Application Folder'}
+                        {submittingStatus ? 'Updating Audit Log...' : 'Updation Application Status'}
                       </button>
                     </form>
                   )}

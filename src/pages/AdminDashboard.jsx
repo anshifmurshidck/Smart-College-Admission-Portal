@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { 
   FileText, 
   UserCheck, 
@@ -9,7 +9,9 @@ import {
   TrendingUp, 
   Clock, 
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { CardSkeleton, ChartSkeleton } from '../components/LoadingSkeleton';
 
@@ -17,26 +19,67 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [activityPage, setActivityPage] = useState(1);
+  const ACTIVITY_PAGE_SIZE = 15;
 
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
 
   const loadDashboardData = () => {
     setLoading(true);
     setErrorMsg('');
-    const token = localStorage.getItem('adminToken');
     
-    axios.get(`${API_BASE}/admin/dashboard-stats`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then((res) => {
-      setStats(res.data);
-      setLoading(false);
-    })
-    .catch((err) => {
+    try {
+      const { data: apps, error } = await supabase
+        .from('applications')
+        .select('*, department:departments(code, name)');
+        
+      if (error) throw error;
+      
+      const total = apps.length;
+      const approved = apps.filter(a => a.status === 'Approved').length;
+      const rejected = apps.filter(a => a.status === 'Rejected').length;
+      const pending = apps.filter(a => a.status === 'Pending').length;
+
+      const deptMap = {};
+      apps.forEach(a => {
+        const code = a.department?.code || 'Unknown';
+        const name = a.department?.name || 'Unknown';
+        if (!deptMap[code]) deptMap[code] = { code, name, count: 0 };
+        deptMap[code].count++;
+      });
+      const departments = Object.values(deptMap);
+
+      const monthlyMap = {};
+      apps.filter(a => a.status === 'Approved').forEach(a => {
+        const date = new Date(a.updated_at);
+        const month = date.toLocaleString('default', { month: 'short' });
+        if (!monthlyMap[month]) monthlyMap[month] = { month, count: 0, _date: date };
+        monthlyMap[month].count++;
+      });
+      const monthly = Object.values(monthlyMap).sort((a,b) => a._date - b._date).slice(-6);
+
+      const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(a => ({
+        id: a.id,
+        full_name: a.full_name,
+        department_name: a.department?.name,
+        status: a.status,
+        created_at: a.created_at
+      }));
+
+      setStats({
+        cards: { total, approved, rejected, pending },
+        departments,
+        monthly,
+        activity
+      });
+      setActivityPage(1);
+      
+    } catch (err) {
       console.error(err);
-      setErrorMsg('Failed to load dashboard metrics. Re-authenticate or try again.');
+      setErrorMsg('Failed to load dashboard metrics. Try refreshing the page.');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   useEffect(() => {
@@ -80,6 +123,9 @@ export default function AdminDashboard() {
   const maxAppsCount = Math.max(...stats.departments.map(d => d.count), 1);
   const maxMonthlyCount = Math.max(...stats.monthly.map(m => m.count), 1);
 
+  const totalActivityPages = Math.max(1, Math.ceil((stats?.activity?.length || 0) / ACTIVITY_PAGE_SIZE));
+  const paginatedActivity = (stats?.activity || []).slice((activityPage - 1) * ACTIVITY_PAGE_SIZE, activityPage * ACTIVITY_PAGE_SIZE);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       
@@ -91,7 +137,7 @@ export default function AdminDashboard() {
         </div>
         <button onClick={loadDashboardData} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
           <RefreshCw size={16} />
-          Refresh Stats
+          Refresh Status
         </button>
       </div>
 
@@ -196,85 +242,7 @@ export default function AdminDashboard() {
 
       </div>
 
-      {/* Recent Activity Section */}
-      <div className="glass-panel" style={{ padding: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h4 style={{ fontSize: '18px', fontWeight: '700' }}>Recent Application Activities</h4>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Latest application submissions and status edits</p>
-          </div>
-          <Link to="/admin/applications" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--color-royal)' }}>
-            Manage All <ArrowRight size={14} />
-          </Link>
-        </div>
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600' }}>
-                <th style={{ padding: '12px 16px' }}>App ID</th>
-                <th style={{ padding: '12px 16px' }}>Applicant</th>
-                <th style={{ padding: '12px 16px' }}>Branch</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Submission Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.activity.length === 0 ? (
-                <tr>
-                  <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No applications submitted yet.
-                  </td>
-                </tr>
-              ) : (
-                stats.activity.map((act) => {
-                  let statusColor = '#475569';
-                  let statusBg = 'rgba(71,85,105,0.08)';
-                  
-                  if (act.status === 'Approved') {
-                    statusColor = '#059669';
-                    statusBg = 'rgba(5, 150, 105, 0.08)';
-                  } else if (act.status === 'Rejected') {
-                    statusColor = '#dc2626';
-                    statusBg = 'rgba(220, 38, 38, 0.08)';
-                  } else if (act.status === 'Under Verification') {
-                    statusColor = '#d97706';
-                    statusBg = 'rgba(217, 119, 6, 0.08)';
-                  }
-                  
-                  const dateObj = new Date(act.created_at);
-                  const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                  return (
-                    <tr key={act.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'var(--transition-fast)' }}>
-                      <td style={{ padding: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>
-                        <Link to={`/admin/applications?search=${act.id}`}>{act.id}</Link>
-                      </td>
-                      <td style={{ padding: '16px', fontWeight: '600' }}>{act.full_name}</td>
-                      <td style={{ padding: '16px' }}>{act.department_code}</td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{ 
-                          padding: '4px 10px', 
-                          borderRadius: 'var(--radius-full)', 
-                          fontSize: '11px', 
-                          fontWeight: '700', 
-                          color: statusColor, 
-                          backgroundColor: statusBg,
-                          border: `1px solid ${statusColor}15`
-                        }}>
-                          {act.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{dateStr}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
     </div>
   );
