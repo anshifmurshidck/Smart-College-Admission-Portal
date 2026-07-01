@@ -728,7 +728,7 @@ export default function ApplicationsList() {
                         disabled={submittingStatus}
                         style={{ padding: '12px', fontSize: '14px', display: 'flex', justifyContent: 'center', gap: '8px', opacity: submittingStatus ? 0.7 : 1 }}
                       >
-                        {submittingStatus ? 'Updating Audit Log...' : 'Update Application Folder'}
+                        {submittingStatus ? 'Updating Audit Log...' : 'Updation Application Status'}
                       </button>
                     </form>
                   )}
