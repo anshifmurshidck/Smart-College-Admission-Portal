@@ -42,7 +42,7 @@ export default function Contact() {
             Connect with TMEC
           </h2>
           <p style={{ color: 'var(--text-secondary)', marginTop: '12px', maxWidth: '600px', margin: '12px auto 0 auto' }}>
-            Reach out to our registrar, admissions advisory board, or technical support desks. We reply within 24 hours.
+            Reach out to our admission office, admissions advisory board, or technical support desks. We reply within 24 hours.
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export default function Contact() {
               <h3 style={{ fontSize: '20px', fontWeight: '700' }}>Support Hotlines</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '14px' }}>
                 <div>
-                  <strong>Registrar Office</strong>
+                  <strong>Admission Office</strong>
                   <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>+1 (555) 0122</p>
                 </div>
                 <div>

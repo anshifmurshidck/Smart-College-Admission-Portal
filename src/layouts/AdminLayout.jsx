@@ -258,7 +258,7 @@ export default function AdminLayout() {
           </button>
 
           <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', flex: 1 }} className="md:block">
-            Registrar Management System
+            College Management System
           </span>
 
 

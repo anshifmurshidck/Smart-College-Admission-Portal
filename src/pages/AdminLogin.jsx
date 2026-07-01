@@ -88,7 +88,7 @@ export default function AdminLogin() {
             }} 
           />
           <h3 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-secondary)' }}>Thought Minds College</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>Registrar Administration Portal</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>College Administration Portal</p>
         </div>
 
         {errorMsg && (
