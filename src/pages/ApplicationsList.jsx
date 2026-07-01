@@ -50,7 +50,7 @@ export default function ApplicationsList() {
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
   const SERVER_HOST = 'http://localhost:5000'; // For file serving
 
-  const loadApplications = () => {
+  const loadApplications = async () => {
     setLoading(true);
     setErrorMsg('');
     

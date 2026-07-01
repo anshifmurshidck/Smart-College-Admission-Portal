@@ -95,7 +95,7 @@ export default function StudentDatabase() {
   const token = () => localStorage.getItem('adminToken');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
 
-  const loadStudents = () => {
+  const loadStudents = async () => {
     setLoading(true);
     setErrorMsg('');
     try {

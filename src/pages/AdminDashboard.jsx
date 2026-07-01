@@ -24,7 +24,7 @@ export default function AdminDashboard() {
 
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
 
-  const loadDashboardData = () => {
+  const loadDashboardData = async () => {
     setLoading(true);
     setErrorMsg('');
     
