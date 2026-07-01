@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
@@ -29,6 +30,10 @@ const inputStyle = (hasError) => ({
 });
 
 export default function Apply() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialDept = queryParams.get('dept') || '';
+
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
@@ -41,7 +46,7 @@ export default function Apply() {
     gender: '',
     parentName: '',
     parentPhone: '',
-    departmentId: '',
+    departmentId: initialDept,
   });
 
   /* per-field error map */
