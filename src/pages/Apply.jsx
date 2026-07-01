@@ -28,6 +28,28 @@ const inputStyle = (hasError) => ({
   boxShadow: hasError ? '0 0 0 3px rgba(239,68,68,0.12)' : undefined,
 });
 
+const countryCodes = [
+  { code: '+91', name: 'India', flag: '🇮🇳', length: 10, placeholder: '98765 43210' },
+  { code: '+1', name: 'US / Canada', flag: '🇺🇸', length: 10, placeholder: '201 555 0123' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', length: 10, placeholder: '7700 900077' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', length: 9, placeholder: '412 345 678' },
+  { code: '+86', name: 'China', flag: '🇨🇳', length: 11, placeholder: '138 1234 5678' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', length: 9, placeholder: '50 123 4567' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', length: 8, placeholder: '8123 4567' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', minLength: 10, maxLength: 11, placeholder: '170 1234567' },
+  { code: '+33', name: 'France', flag: '🇫🇷', length: 9, placeholder: '6 1234 5678' },
+  { code: '+92', name: 'Pakistan', flag: '🇵🇰', length: 10, placeholder: '300 1234567' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', length: 10, placeholder: '1712 345678' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', length: 9, placeholder: '71 234 5678' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', length: 10, placeholder: '985 1012345' },
+  { code: '+60', name: 'Malaysia', flag: '🇲🇾', minLength: 9, maxLength: 10, placeholder: '12 345 6789' },
+  { code: '+62', name: 'Indonesia', flag: '🇮🇩', minLength: 9, maxLength: 12, placeholder: '812 3456 7890' },
+  { code: '+39', name: 'Italy', flag: '🇮🇹', length: 10, placeholder: '312 345 6789' },
+  { code: '+34', name: 'Spain', flag: '🇪🇸', length: 9, placeholder: '612 345 678' },
+  { code: '+27', name: 'South Africa', flag: '🇿🇦', length: 9, placeholder: '82 123 4567' },
+  { code: 'Other', name: 'Other', flag: '🌐', minLength: 7, maxLength: 15, placeholder: 'Enter phone' },
+];
+
 export default function Apply() {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
@@ -35,11 +57,13 @@ export default function Apply() {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    phoneCountryCode: '+91',
     phone: '',
     address: '',
     dob: '',
     gender: '',
     parentName: '',
+    parentPhoneCountryCode: '+91',
     parentPhone: '',
     departmentId: '',
     aadhaarNumber: '',
@@ -100,7 +124,25 @@ export default function Apply() {
   /* ── Input change: clear field error on edit ─────────────────────── */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === 'phoneCountryCode') {
+      const selected = countryCodes.find(c => c.code === value);
+      const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+      setFormData((prev) => ({
+        ...prev,
+        phoneCountryCode: value,
+        phone: prev.phone.slice(0, maxLen)
+      }));
+    } else if (name === 'parentPhoneCountryCode') {
+      const selected = countryCodes.find(c => c.code === value);
+      const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+      setFormData((prev) => ({
+        ...prev,
+        parentPhoneCountryCode: value,
+        parentPhone: prev.parentPhone.slice(0, maxLen)
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
     if (fieldErrors[name]) {
       setFieldErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -121,16 +163,16 @@ export default function Apply() {
     }
   };
 
-  /* ── Allow only digits (+) in phone fields ───────────────────────── */
-  const handlePhoneKeyDown = (e) => {
+  /* ── Allow only digits in phone fields (allow + only for 'Other') ── */
+  const handlePhoneKeyDown = (e, countryCode) => {
     const ctrl = e.ctrlKey || e.metaKey;
     if (
       ctrl ||
       ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)
     )
       return;
-    // Allow + only at position 0
-    if (e.key === '+' && e.target.selectionStart === 0) return;
+    // Allow + only at position 0 if country code is 'Other'
+    if (countryCode === 'Other' && e.key === '+' && e.target.selectionStart === 0) return;
     // Block anything that isn't a digit
     if (!/\d/.test(e.key)) {
       e.preventDefault();
@@ -175,11 +217,29 @@ export default function Apply() {
     else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(formData.email))
       errs.email = 'Enter a valid email address';
 
-    if (!formData.phone.trim()) errs.phone = 'Phone Number is required';
-    else if (!/^\+?[0-9]{10,15}$/.test(formData.phone))
-      errs.phone = 'Phone must be 10–15 digits';
+    // Student phone validation
+    const studentCountry = countryCodes.find(c => c.code === formData.phoneCountryCode);
+    const cleanPhone = formData.phone.trim();
+    if (!cleanPhone) {
+      errs.phone = 'Phone Number is required';
+    } else {
+      if (formData.phoneCountryCode === 'Other') {
+        if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+          errs.phone = 'Phone must be between 7 and 15 digits';
+        }
+      } else {
+        if (!/^[0-9]+$/.test(cleanPhone)) {
+          errs.phone = 'Phone number must contain only digits';
+        } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+          errs.phone = `Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`;
+        } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+          errs.phone = `Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`;
+        }
+      }
+    }
 
     if (!formData.address.trim()) errs.address = 'Residential Address is required';
+    else if (formData.address.length > 200) errs.address = 'Address must not exceed 200 characters';
     if (!formData.dob) errs.dob = 'Date of Birth is required';
     if (!formData.gender) errs.gender = 'Gender is required';
 
@@ -214,9 +274,26 @@ export default function Apply() {
     if (!formData.parentName.trim()) errs.parentName = 'Parent / Guardian Name is required';
     else if (/\d/.test(formData.parentName)) errs.parentName = 'Name must not contain numbers';
 
-    if (!formData.parentPhone.trim()) errs.parentPhone = 'Parent Contact Number is required';
-    else if (!/^\+?[0-9]{10,15}$/.test(formData.parentPhone))
-      errs.parentPhone = 'Phone must be 10–15 digits';
+    // Parent phone validation
+    const parentCountry = countryCodes.find(c => c.code === formData.parentPhoneCountryCode);
+    const cleanParentPhone = formData.parentPhone.trim();
+    if (!cleanParentPhone) {
+      errs.parentPhone = 'Parent Contact Number is required';
+    } else {
+      if (formData.parentPhoneCountryCode === 'Other') {
+        if (!/^\+?[0-9]{7,15}$/.test(cleanParentPhone)) {
+          errs.parentPhone = 'Phone must be between 7 and 15 digits';
+        }
+      } else {
+        if (!/^[0-9]+$/.test(cleanParentPhone)) {
+          errs.parentPhone = 'Phone number must contain only digits';
+        } else if (parentCountry.length && cleanParentPhone.length !== parentCountry.length) {
+          errs.parentPhone = `Phone number must be exactly ${parentCountry.length} digits for ${parentCountry.name} (${parentCountry.code})`;
+        } else if (parentCountry.minLength && (cleanParentPhone.length < parentCountry.minLength || cleanParentPhone.length > parentCountry.maxLength)) {
+          errs.parentPhone = `Phone number must be between ${parentCountry.minLength} and ${parentCountry.maxLength} digits for ${parentCountry.name} (${parentCountry.code})`;
+        }
+      }
+    }
 
     if (!formData.departmentId) errs.departmentId = 'Please select a department';
     if (!files.marksheet10) errs.marksheet10 = '10th Marksheet is required';
@@ -267,17 +344,20 @@ export default function Apply() {
         const marksheet12Url = await uploadFile(files.marksheet12, 'marksheet12');
         const idProofUrl = await uploadFile(files.idProof, 'idProof');
 
+        const combinedPhone = formData.phoneCountryCode === 'Other' ? formData.phone.trim() : formData.phoneCountryCode + formData.phone.trim();
+        const combinedParentPhone = formData.parentPhoneCountryCode === 'Other' ? formData.parentPhone.trim() : formData.parentPhoneCountryCode + formData.parentPhone.trim();
+
         // 3. Insert Application Data
         const { error: appError } = await supabase.from('applications').insert([{
           id: appId,
           full_name: formData.fullName,
           email: formData.email,
-          phone: formData.phone,
+          phone: combinedPhone,
           address: formData.address,
           dob: formData.dob,
           gender: formData.gender,
           parent_name: formData.parentName,
-          parent_phone: formData.parentPhone,
+          parent_phone: combinedParentPhone,
           department_id: parseInt(formData.departmentId),
           aadhaar_number: formData.aadhaarNumber,
           state: formData.state,
@@ -413,17 +493,39 @@ export default function Apply() {
                   <label className="form-label">
                     Phone Number <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    onKeyDown={handlePhoneKeyDown}
-                    className="form-input"
-                    placeholder="9876543210"
-                    maxLength={15}
-                    style={inputStyle(fieldErrors.phone)}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      name="phoneCountryCode"
+                      value={formData.phoneCountryCode}
+                      onChange={handleInputChange}
+                      className="form-select"
+                      style={{ width: '110px', flexShrink: 0 }}
+                    >
+                      {countryCodes.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => handlePhoneKeyDown(e, formData.phoneCountryCode)}
+                      className="form-input"
+                      placeholder={
+                        countryCodes.find((c) => c.code === formData.phoneCountryCode)?.placeholder || 'Enter phone'
+                      }
+                      maxLength={
+                        (() => {
+                          const selected = countryCodes.find(c => c.code === formData.phoneCountryCode);
+                          return selected ? (selected.maxLength || selected.length || 15) : 15;
+                        })()
+                      }
+                      style={inputStyle(fieldErrors.phone)}
+                    />
+                  </div>
                   <FieldError msg={fieldErrors.phone} />
                 </div>
               </div>
@@ -467,8 +569,11 @@ export default function Apply() {
 
               {/* Address */}
               <div className="form-group">
-                <label className="form-label">
-                  Full Residential Address <span style={{ color: '#ef4444' }}>*</span>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Full Residential Address <span style={{ color: '#ef4444' }}>*</span></span>
+                  <span style={{ fontSize: '11px', color: formData.address.length > 180 ? '#ef4444' : 'var(--text-muted)', fontWeight: 400 }}>
+                    {formData.address.length}/200
+                  </span>
                 </label>
                 <textarea
                   name="address"
@@ -477,6 +582,7 @@ export default function Apply() {
                   rows="3"
                   className="form-textarea"
                   placeholder="Street Address, City, ZIP Code"
+                  maxLength={200}
                   style={inputStyle(fieldErrors.address)}
                 />
                 <FieldError msg={fieldErrors.address} />
@@ -570,17 +676,39 @@ export default function Apply() {
                 <label className="form-label">
                   Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="tel"
-                  name="parentPhone"
-                  value={formData.parentPhone}
-                  onChange={handleInputChange}
-                  onKeyDown={handlePhoneKeyDown}
-                  className="form-input"
-                  placeholder="9876543211"
-                  maxLength={15}
-                  style={inputStyle(fieldErrors.parentPhone)}
-                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    name="parentPhoneCountryCode"
+                    value={formData.parentPhoneCountryCode}
+                    onChange={handleInputChange}
+                    className="form-select"
+                    style={{ width: '110px', flexShrink: 0 }}
+                  >
+                    {countryCodes.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    name="parentPhone"
+                    value={formData.parentPhone}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => handlePhoneKeyDown(e, formData.parentPhoneCountryCode)}
+                    className="form-input"
+                    placeholder={
+                      countryCodes.find((c) => c.code === formData.parentPhoneCountryCode)?.placeholder || 'Enter phone'
+                    }
+                    maxLength={
+                      (() => {
+                        const selected = countryCodes.find(c => c.code === formData.parentPhoneCountryCode);
+                        return selected ? (selected.maxLength || selected.length || 15) : 15;
+                      })()
+                    }
+                    style={inputStyle(fieldErrors.parentPhone)}
+                  />
+                </div>
                 <FieldError msg={fieldErrors.parentPhone} />
               </div>
             </div>

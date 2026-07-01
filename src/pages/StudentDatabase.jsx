@@ -7,6 +7,62 @@ import {
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
+const countryCodes = [
+  { code: '+91', name: 'India', flag: '🇮🇳', length: 10, placeholder: '98765 43210' },
+  { code: '+1', name: 'US / Canada', flag: '🇺🇸', length: 10, placeholder: '201 555 0123' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', length: 10, placeholder: '7700 900077' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', length: 9, placeholder: '412 345 678' },
+  { code: '+86', name: 'China', flag: '🇨🇳', length: 11, placeholder: '138 1234 5678' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', length: 9, placeholder: '50 123 4567' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', length: 8, placeholder: '8123 4567' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', minLength: 10, maxLength: 11, placeholder: '170 1234567' },
+  { code: '+33', name: 'France', flag: '🇫🇷', length: 9, placeholder: '6 1234 5678' },
+  { code: '+92', name: 'Pakistan', flag: '🇵🇰', length: 10, placeholder: '300 1234567' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', length: 10, placeholder: '1712 345678' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', length: 9, placeholder: '71 234 5678' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', length: 10, placeholder: '985 1012345' },
+  { code: '+60', name: 'Malaysia', flag: '🇲🇾', minLength: 9, maxLength: 10, placeholder: '12 345 6789' },
+  { code: '+62', name: 'Indonesia', flag: '🇮🇩', minLength: 9, maxLength: 12, placeholder: '812 3456 7890' },
+  { code: '+39', name: 'Italy', flag: '🇮🇹', length: 10, placeholder: '312 345 6789' },
+  { code: '+34', name: 'Spain', flag: '🇪🇸', length: 9, placeholder: '612 345 678' },
+  { code: '+27', name: 'South Africa', flag: '🇿🇦', length: 9, placeholder: '82 123 4567' },
+  { code: 'Other', name: 'Other', flag: '🌐', minLength: 7, maxLength: 15, placeholder: 'Enter phone' },
+];
+
+const parsePhoneNumber = (combinedPhone) => {
+  if (!combinedPhone) return { countryCode: '+91', localPhone: '' };
+  
+  const sortedCodes = [...countryCodes].sort((a, b) => b.code.length - a.code.length);
+  for (const c of sortedCodes) {
+    if (c.code !== 'Other' && combinedPhone.startsWith(c.code)) {
+      return {
+        countryCode: c.code,
+        localPhone: combinedPhone.slice(c.code.length)
+      };
+    }
+  }
+  
+  const match = combinedPhone.match(/^(\+[0-9]+)([0-9]{7,15})$/);
+  if (match) {
+    return { countryCode: match[1], localPhone: match[2] };
+  }
+  
+  return { countryCode: 'Other', localPhone: combinedPhone };
+};
+
+const handlePhoneKeyDown = (e, countryCode) => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (
+    ctrl ||
+    ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)
+  )
+    return;
+  if (countryCode === 'Other' && e.key === '+' && e.target.selectionStart === 0) return;
+  if (!/\d/.test(e.key)) {
+    e.preventDefault();
+  }
+};
+
 export default function StudentDatabase() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +84,7 @@ export default function StudentDatabase() {
 
   // Add Student Modal
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
+  const [addForm, setAddForm] = useState({ fullName:'', email:'', phoneCountryCode: '+91', phone:'', dob:'', gender:'', departmentId:'', address:'' });
   const [addLoading, setAddLoading] = useState(false);
   const [addSuccess, setAddSuccess] = useState('');
 
@@ -104,10 +160,12 @@ export default function StudentDatabase() {
         ...data,
         department_name: data.department?.name
       }});
+      const parsed = parsePhoneNumber(data.phone);
       setEditForm({
         full_name: data.full_name,
         email: data.email,
-        phone: data.phone,
+        phoneCountryCode: parsed.countryCode,
+        phone: parsed.localPhone,
         dob: data.dob,
         gender: data.gender,
         department_id: data.department_id,
@@ -125,13 +183,42 @@ export default function StudentDatabase() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    const studentCountry = countryCodes.find(c => c.code === editForm.phoneCountryCode);
+    const cleanPhone = (editForm.phone || '').trim();
+    if (!cleanPhone) {
+      alert('Phone Number is required');
+      return;
+    }
+    if (editForm.phoneCountryCode === 'Other') {
+      if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+        alert('Phone must be between 7 and 15 digits');
+        return;
+      }
+    } else {
+      if (!/^[0-9]+$/.test(cleanPhone)) {
+        alert('Phone number must contain only digits');
+        return;
+      } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+        alert(`Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+        alert(`Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      }
+    }
+
+    const combinedPhone = editForm.phoneCountryCode === 'Other' ? cleanPhone : editForm.phoneCountryCode + cleanPhone;
+
     try {
       const appIdMatch = selectedStudent.replace('TMP-', '');
       const updatedForm = {
         ...editForm,
+        phone: combinedPhone,
         tenth_percentage: editForm.tenth_percentage ? parseFloat(editForm.tenth_percentage) : null,
         twelfth_percentage: editForm.twelfth_percentage ? parseFloat(editForm.twelfth_percentage) : null
       };
+      delete updatedForm.phoneCountryCode;
+
       const { error } = await supabase.from('applications')
         .update(updatedForm)
         .or(`assigned_student_id.eq.${selectedStudent},id.eq.${appIdMatch}`);
@@ -163,6 +250,32 @@ export default function StudentDatabase() {
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
+    const studentCountry = countryCodes.find(c => c.code === addForm.phoneCountryCode);
+    const cleanPhone = (addForm.phone || '').trim();
+    if (!cleanPhone) {
+      alert('Phone Number is required');
+      return;
+    }
+    if (addForm.phoneCountryCode === 'Other') {
+      if (!/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+        alert('Phone must be between 7 and 15 digits');
+        return;
+      }
+    } else {
+      if (!/^[0-9]+$/.test(cleanPhone)) {
+        alert('Phone number must contain only digits');
+        return;
+      } else if (studentCountry.length && cleanPhone.length !== studentCountry.length) {
+        alert(`Phone number must be exactly ${studentCountry.length} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      } else if (studentCountry.minLength && (cleanPhone.length < studentCountry.minLength || cleanPhone.length > studentCountry.maxLength)) {
+        alert(`Phone number must be between ${studentCountry.minLength} and ${studentCountry.maxLength} digits for ${studentCountry.name} (${studentCountry.code})`);
+        return;
+      }
+    }
+
+    const combinedPhone = addForm.phoneCountryCode === 'Other' ? cleanPhone : addForm.phoneCountryCode + cleanPhone;
+
     setAddLoading(true);
     setAddSuccess('');
     
@@ -176,7 +289,7 @@ export default function StudentDatabase() {
         id: appId,
         full_name: addForm.fullName,
         email: addForm.email,
-        phone: addForm.phone,
+        phone: combinedPhone,
         dob: addForm.dob,
         gender: addForm.gender,
         department_id: addForm.departmentId,
@@ -190,7 +303,7 @@ export default function StudentDatabase() {
       if (error) throw error;
       
       setAddSuccess(`Student registered! ID: ${studentId}`);
-      setAddForm({ fullName:'', email:'', phone:'', dob:'', gender:'', departmentId:'', address:'' });
+      setAddForm({ fullName:'', email:'', phoneCountryCode: '+91', phone:'', dob:'', gender:'', departmentId:'', address:'' });
       loadStudents();
     } catch(err) {
       alert(err.message || 'Failed to add student');
@@ -339,7 +452,6 @@ export default function StudentDatabase() {
                   {[
                     { label: 'Full Name', key: 'full_name', type: 'text' },
                     { label: 'Email', key: 'email', type: 'email' },
-                    { label: 'Phone', key: 'phone', type: 'tel' },
                     { label: 'Date of Birth', key: 'dob', type: 'date' },
                     { label: 'Aadhaar Number', key: 'aadhaar_number', type: 'text' },
                     { label: 'State', key: 'state', type: 'text' },
@@ -351,6 +463,49 @@ export default function StudentDatabase() {
                       <input type={f.type} step={f.type === 'number' ? '0.01' : undefined} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" />
                     </div>
                   ))}
+
+                  <div className="form-group">
+                    <label className="form-label">Phone</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select
+                        value={editForm.phoneCountryCode || '+91'}
+                        onChange={e => {
+                          const code = e.target.value;
+                          const selected = countryCodes.find(c => c.code === code);
+                          const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+                          setEditForm(p => ({
+                            ...p,
+                            phoneCountryCode: code,
+                            phone: (p.phone || '').slice(0, maxLen)
+                          }));
+                        }}
+                        className="form-select"
+                        style={{ width: '110px', flexShrink: 0 }}
+                      >
+                        {countryCodes.map(c => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} {c.code}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        value={editForm.phone || ''}
+                        onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
+                        onKeyDown={e => handlePhoneKeyDown(e, editForm.phoneCountryCode)}
+                        className="form-input"
+                        placeholder={
+                          countryCodes.find((c) => c.code === editForm.phoneCountryCode)?.placeholder || 'Enter phone'
+                        }
+                        maxLength={
+                          (() => {
+                            const selected = countryCodes.find(c => c.code === editForm.phoneCountryCode);
+                            return selected ? (selected.maxLength || selected.length || 15) : 15;
+                          })()
+                        }
+                      />
+                    </div>
+                  </div>
                   <div className="form-group">
                     <label className="form-label">Gender</label>
                     <select value={editForm.gender || ''} onChange={e => setEditForm(p => ({ ...p, gender: e.target.value }))} className="form-select">
@@ -453,7 +608,6 @@ export default function StudentDatabase() {
                 {[
                   { label: 'Full Name', key: 'fullName', type: 'text', placeholder: 'John Doe' },
                   { label: 'Email', key: 'email', type: 'email', placeholder: 'john@example.com' },
-                  { label: 'Phone', key: 'phone', type: 'tel', placeholder: '9876543210' },
                   { label: 'Date of Birth', key: 'dob', type: 'date', placeholder: '' },
                   { label: 'Residential Address', key: 'address', type: 'text', placeholder: 'Full address' },
                 ].map(f => (
@@ -462,6 +616,52 @@ export default function StudentDatabase() {
                     <input required type={f.type} value={addForm[f.key]} onChange={e => setAddForm(p => ({ ...p, [f.key]: e.target.value }))} className="form-input" placeholder={f.placeholder} />
                   </div>
                 ))}
+
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      required
+                      value={addForm.phoneCountryCode}
+                      onChange={e => {
+                        const code = e.target.value;
+                        const selected = countryCodes.find(c => c.code === code);
+                        const maxLen = selected ? (selected.maxLength || selected.length || 15) : 15;
+                        setAddForm(p => ({
+                          ...p,
+                          phoneCountryCode: code,
+                          phone: (p.phone || '').slice(0, maxLen)
+                        }));
+                      }}
+                      className="form-select"
+                      style={{ width: '110px', flexShrink: 0 }}
+                    >
+                      {countryCodes.map(c => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      required
+                      type="tel"
+                      value={addForm.phone}
+                      onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))}
+                      onKeyDown={e => handlePhoneKeyDown(e, addForm.phoneCountryCode)}
+                      className="form-input"
+                      placeholder={
+                        countryCodes.find((c) => c.code === addForm.phoneCountryCode)?.placeholder || 'Enter phone'
+                      }
+                      maxLength={
+                        (() => {
+                          const selected = countryCodes.find(c => c.code === addForm.phoneCountryCode);
+                          return selected ? (selected.maxLength || selected.length || 15) : 15;
+                        })()
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Gender</label>
                   <select required value={addForm.gender} onChange={e => setAddForm(p => ({ ...p, gender: e.target.value }))} className="form-select">
