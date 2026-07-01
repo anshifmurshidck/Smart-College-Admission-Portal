@@ -1,6 +1,7 @@
 import os
 import random
 import datetime
+import requests
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from backend.db import db
@@ -78,22 +79,47 @@ def apply():
             'idProof': 'ID Proof'
         }
 
+        supabase_url = os.environ.get('VITE_SUPABASE_URL')
+        supabase_key = os.environ.get('VITE_SUPABASE_ANON_KEY')
+
         for file_key, file in files.items():
             ext = file.filename.rsplit('.', 1)[1].lower()
-            safe_name = f"{file_key}_{secure_filename(file.filename)}"
-            # Avoid long filenames causing errors
-            if len(safe_name) > 100:
-                safe_name = f"{file_key}_{random.randint(100,999)}.{ext}"
             
-            filepath = os.path.join(app_upload_dir, safe_name)
-            file.save(filepath)
-            
-            # Save relative path for easy URL references
-            rel_path = f"uploads/{app_id}/{safe_name}"
-            saved_documents.append({
-                'type': doc_type_mapping[file_key],
-                'path': rel_path
-            })
+            if supabase_url and supabase_key:
+                # Upload to Supabase Storage
+                storage_path = f"{app_id}/{file_key}.{ext}"
+                upload_url = f"{supabase_url}/storage/v1/object/documents/{storage_path}"
+                headers = {
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": file.content_type
+                }
+                file_bytes = file.read()
+                res = requests.post(upload_url, headers=headers, data=file_bytes)
+                
+                if res.status_code >= 400:
+                    raise Exception(f"Failed to upload to Supabase: {res.text}")
+                    
+                public_url = f"{supabase_url}/storage/v1/object/public/documents/{storage_path}"
+                saved_documents.append({
+                    'type': doc_type_mapping[file_key],
+                    'path': public_url
+                })
+            else:
+                safe_name = f"{file_key}_{secure_filename(file.filename)}"
+                if len(safe_name) > 100:
+                    safe_name = f"{file_key}_{random.randint(100,999)}.{ext}"
+                
+                filepath = os.path.join(app_upload_dir, safe_name)
+                # Reset file pointer just in case
+                file.seek(0)
+                file.save(filepath)
+                
+                rel_path = f"uploads/{app_id}/{safe_name}"
+                saved_documents.append({
+                    'type': doc_type_mapping[file_key],
+                    'path': rel_path
+                })
 
         # Insert Application to database
         db.execute_write(

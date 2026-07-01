@@ -15,7 +15,7 @@ class Config:
     MYSQL_PASSWORD = os.getenv("DB_PASSWORD", "")
     MYSQL_DB = os.getenv("DB_NAME", "tmec_admission")
     
-    FALLBACK_SQLITE = os.getenv("FALLBACK_SQLITE", "true").lower() in ("true", "1", "yes")
+    FALLBACK_SQLITE = os.getenv("FALLBACK_SQLITE", "true").lower() in ("true", "1", "yes") and not os.getenv("VERCEL")
     SQLITE_PATH = os.path.join(os.path.dirname(__file__), "tmec_portal.db")
     
     # Upload Settings

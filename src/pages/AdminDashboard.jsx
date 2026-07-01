@@ -18,7 +18,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
 
   const loadDashboardData = () => {
     setLoading(true);
