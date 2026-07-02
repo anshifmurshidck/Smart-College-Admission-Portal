@@ -1,16 +1,63 @@
-# React + Vite
+# Smart College Admission Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The **Smart College Admission Portal** (Thought Minds Engineering College) is a comprehensive full-stack web application designed to streamline the college admission process. It provides an intuitive interface for students to submit applications and for administrators to manage and track those applications.
 
-Currently, two official plugins are available:
+## Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Student Application Submission**: Secure portal for students to apply to various engineering departments (CSE, AIML, ECE, ME, CE).
+- **Admin Dashboard**: Comprehensive dashboard for administrators to review, approve, or reject student applications.
+- **Document Management**: Upload and manage necessary admission documents (10th/12th marksheets, ID proofs).
+- **Status Tracking**: Real-time tracking of application status with history logs.
+- **Department & Student Management**: Manage department details, track enrolled students, and generate reports.
 
-## React Compiler
+## Technology Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React.js, Vite, Framer Motion (for animations), Lucide React (icons), React Router.
+- **Backend**: Python, Flask REST API.
+- **Database**: MySQL (with SQLite fallback for local development).
+- **Storage/Cloud**: Supabase integration for cloud storage.
 
-## Expanding the Oxlint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### Prerequisites
+- Node.js (v18+)
+- Python 3.8+
+- MySQL (Optional, SQLite is used as a fallback)
+
+### Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd Smart-College-Admission-Portal
+   ```
+
+2. **Install Frontend Dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up Backend Environment:**
+   ```bash
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   
+   pip install -r requirements.txt
+   ```
+
+4. **Run the Application (Development Mode):**
+   ```bash
+   npm run dev
+   ```
+   This single command concurrently starts both the Vite frontend development server and the Flask backend server.
+
+## API Endpoints
+- The Frontend runs by default on `http://localhost:5173`
+- The Backend API runs on `http://localhost:5000/api`
+  - Health check endpoint: `http://localhost:5000/api/health`
+
+---
+*Note: This project was bootstrapped with Vite and React.*
