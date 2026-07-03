@@ -5,6 +5,9 @@ export default function Reports() {
   const [generating, setGenerating] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const token = localStorage.getItem('adminToken');
+
   const generateReport = async (type, format) => {
     const key = `${type}-${format}`;
     setGenerating(key);

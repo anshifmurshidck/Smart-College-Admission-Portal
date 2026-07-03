@@ -91,6 +91,10 @@ export default function StudentDatabase() {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const token = () => localStorage.getItem('adminToken');
+  const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
+
   const loadStudents = async () => {
     setLoading(true);
     setErrorMsg('');

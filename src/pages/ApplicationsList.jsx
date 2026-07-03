@@ -47,6 +47,9 @@ export default function ApplicationsList() {
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
 
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const SERVER_HOST = 'http://localhost:5000'; // For file serving
+
   const loadApplications = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -660,7 +663,7 @@ export default function ApplicationsList() {
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
                     {modalDetails.documents.map((doc) => {
-                      const fileUrl = doc.file_path;
+                      const fileUrl = doc.file_path.startsWith('http') ? doc.file_path : `${SERVER_HOST}/${doc.file_path}`;
                       const isImage = doc.file_path.match(/\.(png|jpg|jpeg)$/i);
                       
                       return (

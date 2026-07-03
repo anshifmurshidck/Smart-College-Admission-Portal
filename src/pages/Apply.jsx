@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
 
@@ -51,6 +52,10 @@ const countryCodes = [
 ];
 
 export default function Apply() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialDept = queryParams.get('dept') || '';
+
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
@@ -65,11 +70,7 @@ export default function Apply() {
     parentName: '',
     parentPhoneCountryCode: '+91',
     parentPhone: '',
-    departmentId: '',
-    aadhaarNumber: '',
-    state: '',
-    tenthPercentage: '',
-    twelfthPercentage: '',
+    departmentId: initialDept,
   });
 
   /* per-field error map */
@@ -93,6 +94,8 @@ export default function Apply() {
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [applicationId, setApplicationId] = useState('');
   const [agreed, setAgreed] = useState(false);
+
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
 
   useEffect(() => {
     const fetchDepartments = async () => {
