@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database and SQLite files
+*.db
+*.sqlite3
+
+# Python environments and cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+backend/__pycache__/
+backend/routes/__pycache__/
+backend/middlewares/__pycache__/
+
+# Backend uploads
+backend/uploads/
