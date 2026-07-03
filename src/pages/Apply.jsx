@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
+import { supabase } from '../lib/supabase';
 
 /* ─── Inline error helper ───────────────────────────────────────────── */
 const FieldError = ({ msg }) =>
