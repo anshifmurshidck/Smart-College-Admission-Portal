@@ -1190,7 +1190,13 @@ export default function StudentDatabase() {
                     { icon: MapPin, label: 'State', val: studentDetails.student.state || 'N/A' },
                     { icon: Hash, label: 'Aadhaar Number', val: studentDetails.student.aadhaar_number || 'N/A' },
                     { icon: Award, label: '10th Percentage', val: studentDetails.student.tenth_percentage ? `${studentDetails.student.tenth_percentage}%` : 'N/A' },
+                    ...(studentDetails.student.tenth_total_marks !== undefined && studentDetails.student.tenth_total_marks !== null ? [
+                      { icon: Hash, label: '10th Total Marks', val: `${studentDetails.student.tenth_total_marks} / ${studentDetails.student.tenth_max_marks}` }
+                    ] : []),
                     { icon: Award, label: '12th Percentage', val: studentDetails.student.twelfth_percentage ? `${studentDetails.student.twelfth_percentage}%` : 'N/A' },
+                    ...(studentDetails.student.twelfth_total_marks !== undefined && studentDetails.student.twelfth_total_marks !== null ? [
+                      { icon: Hash, label: '12th Total Marks', val: `${studentDetails.student.twelfth_total_marks} / ${studentDetails.student.twelfth_max_marks}` }
+                    ] : []),
                   ].map((item, idx) => {
                     const Icon = item.icon;
                     return (

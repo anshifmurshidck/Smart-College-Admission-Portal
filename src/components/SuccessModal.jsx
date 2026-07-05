@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Copy, CheckCircle2 } from 'lucide-react';
 
-export default function SuccessModal({ isOpen, applicationId, onClose }) {
+export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose }) {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -11,6 +11,10 @@ export default function SuccessModal({ isOpen, applicationId, onClose }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const isApproved = ocrResult?.verified;
+  const studentId = ocrResult?.studentId;
+  const details = ocrResult?.details || {};
 
   return (
     <div 
@@ -60,9 +64,70 @@ export default function SuccessModal({ isOpen, applicationId, onClose }) {
           Application Submitted!
         </h3>
         
-        <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px' }}>
-          Thank you for applying to Thought Minds Engineering College. Your documents have been successfully uploaded and are awaiting verification.
+        <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px', fontSize: '14px' }}>
+          Thank you! Your application has been successfully submitted and is now under administrative review. The admissions office will evaluate your academic details and documents shortly.
         </p>
+
+        {ocrResult && !ocrResult.tesseractActive && (
+          <div 
+            style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.04)',
+              border: '1px solid rgba(245, 158, 11, 0.15)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '12px',
+              fontSize: '12px',
+              color: '#d97706',
+              marginBottom: '20px',
+              textAlign: 'left',
+              lineHeight: '1.4'
+            }}
+          >
+            <strong>💡 Demo Notice:</strong> Tesseract OCR engine was not found on this server. Document image contents were <strong>not</strong> read; verification has been simulated. Upload text-based <strong>PDF files</strong> to run real matching.
+          </div>
+        )}
+
+        {isApproved ? (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(5,150,105,0.06) 100%)', 
+            border: '1px solid rgba(16, 185, 129, 0.15)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '16px',
+            marginBottom: '20px',
+            textAlign: 'left'
+          }}>
+            <div style={{ fontWeight: '700', color: '#059669', marginBottom: '6px', fontSize: '12px', textTransform: 'uppercase' }}>
+              ✓ AI OCR Document Pre-Verification
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              All uploaded documents (Marksheets & ID Proof) successfully matched the details you filled!
+            </div>
+          </div>
+        ) : (
+          Object.keys(details).length > 0 && (
+            <div 
+              style={{
+                backgroundColor: 'rgba(245,158,11,0.06)', 
+                border: '1px solid rgba(245, 158, 11, 0.15)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '16px',
+                fontSize: '12px',
+                textAlign: 'left',
+                color: 'var(--text-secondary)',
+                marginBottom: '20px'
+              }}
+            >
+              <div style={{ fontWeight: '700', color: '#d97706', marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px' }}>
+                ⚠️ AI OCR Pre-Verification Flags:
+              </div>
+              <ul style={{ paddingLeft: '20px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {!details.name_matched && <li>Applicant name on ID Proof does not match filled name.</li>}
+                {!details.aadhaar_matched && <li>Aadhaar Number on ID Proof does not match filled number.</li>}
+                {!details.tenth_matched && <li>Marks or percentage on 10th Marksheet do not match filled details.</li>}
+                {!details.twelfth_matched && <li>Marks or percentage on 12th Marksheet do not match filled details.</li>}
+              </ul>
+            </div>
+          )
+        )}
 
         {/* Display Application ID Card */}
         <div 

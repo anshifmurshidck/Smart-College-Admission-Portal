@@ -72,6 +72,14 @@ export default function Apply() {
     parentPhoneCountryCode: '+91',
     parentPhone: '',
     departmentId: initialDept,
+    tenthPercentage: '',
+    tenthTotalMarks: '',
+    tenthMaxMarks: '',
+    twelfthPercentage: '',
+    twelfthTotalMarks: '',
+    twelfthMaxMarks: '',
+    aadhaarNumber: '',
+    state: ''
   });
 
   /* per-field error map */
@@ -94,6 +102,7 @@ export default function Apply() {
   const [submitting, setSubmitting] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [applicationId, setApplicationId] = useState('');
+  const [ocrResult, setOcrResult] = useState(null);
   const [agreed, setAgreed] = useState(false);
 
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
@@ -125,6 +134,36 @@ export default function Apply() {
     fetchDepartments();
   }, []);
 
+  // Dynamic 10th percentage calculation
+  useEffect(() => {
+    const tot10 = parseFloat(formData.tenthTotalMarks);
+    const max10 = parseFloat(formData.tenthMaxMarks);
+    if (!isNaN(tot10) && !isNaN(max10) && max10 > 0) {
+      if (tot10 <= max10) {
+        const pct = ((tot10 / max10) * 100).toFixed(2);
+        setFormData(prev => ({ ...prev, tenthPercentage: pct }));
+        if (fieldErrors.tenthPercentage) {
+          setFieldErrors(prev => ({ ...prev, tenthPercentage: '' }));
+        }
+      }
+    }
+  }, [formData.tenthTotalMarks, formData.tenthMaxMarks]);
+
+  // Dynamic 12th percentage calculation
+  useEffect(() => {
+    const tot12 = parseFloat(formData.twelfthTotalMarks);
+    const max12 = parseFloat(formData.twelfthMaxMarks);
+    if (!isNaN(tot12) && !isNaN(max12) && max12 > 0) {
+      if (tot12 <= max12) {
+        const pct = ((tot12 / max12) * 100).toFixed(2);
+        setFormData(prev => ({ ...prev, twelfthPercentage: pct }));
+        if (fieldErrors.twelfthPercentage) {
+          setFieldErrors(prev => ({ ...prev, twelfthPercentage: '' }));
+        }
+      }
+    }
+  }, [formData.twelfthTotalMarks, formData.twelfthMaxMarks]);
+
   /* ── Input change: clear field error on edit ─────────────────────── */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -144,7 +183,7 @@ export default function Apply() {
         parentPhoneCountryCode: value,
         parentPhone: prev.parentPhone.slice(0, maxLen)
       }));
-    } else if (name === 'tenthPercentage' || name === 'twelfthPercentage') {
+    } else if (['tenthPercentage', 'twelfthPercentage', 'tenthTotalMarks', 'tenthMaxMarks', 'twelfthTotalMarks', 'twelfthMaxMarks'].includes(name)) {
       if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
         setFormData((prev) => ({ ...prev, [name]: value }));
       }
@@ -290,14 +329,54 @@ export default function Apply() {
       errs.state = 'State is required';
     }
 
+    if (!data.tenthTotalMarks.toString().trim()) {
+      errs.tenthTotalMarks = '10th Marks Obtained is required';
+    } else {
+      const tot = parseFloat(data.tenthTotalMarks);
+      if (isNaN(tot) || tot < 0) {
+        errs.tenthTotalMarks = 'Marks must be a positive number';
+      }
+    }
+
+    if (!data.tenthMaxMarks.toString().trim()) {
+      errs.tenthMaxMarks = '10th Maximum Marks is required';
+    } else {
+      const max = parseFloat(data.tenthMaxMarks);
+      const tot = parseFloat(data.tenthTotalMarks);
+      if (isNaN(max) || max <= 0) {
+        errs.tenthMaxMarks = 'Max marks must be greater than 0';
+      } else if (!isNaN(tot) && tot > max) {
+        errs.tenthTotalMarks = 'Obtained marks cannot exceed maximum marks';
+      }
+    }
+
     if (!data.tenthPercentage.trim()) {
       errs.tenthPercentage = '10th Percentage is required';
     } else {
       const val = parseFloat(data.tenthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.tenthPercentage = 'Percentage must be between 0 and 100';
-      } else if (!/^\d+(\.\d{1,2})?$/.test(data.tenthPercentage.trim())) {
-        errs.tenthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
+      }
+    }
+
+    if (!data.twelfthTotalMarks.toString().trim()) {
+      errs.twelfthTotalMarks = '12th Marks Obtained is required';
+    } else {
+      const tot = parseFloat(data.twelfthTotalMarks);
+      if (isNaN(tot) || tot < 0) {
+        errs.twelfthTotalMarks = 'Marks must be a positive number';
+      }
+    }
+
+    if (!data.twelfthMaxMarks.toString().trim()) {
+      errs.twelfthMaxMarks = '12th Maximum Marks is required';
+    } else {
+      const max = parseFloat(data.twelfthMaxMarks);
+      const tot = parseFloat(data.twelfthTotalMarks);
+      if (isNaN(max) || max <= 0) {
+        errs.twelfthMaxMarks = 'Max marks must be greater than 0';
+      } else if (!isNaN(tot) && tot > max) {
+        errs.twelfthTotalMarks = 'Obtained marks cannot exceed maximum marks';
       }
     }
 
@@ -307,8 +386,6 @@ export default function Apply() {
       const val = parseFloat(data.twelfthPercentage);
       if (isNaN(val) || val < 0 || val > 100) {
         errs.twelfthPercentage = 'Percentage must be between 0 and 100';
-      } else if (!/^\d+(\.\d{1,2})?$/.test(data.twelfthPercentage.trim())) {
-        errs.twelfthPercentage = 'Percentage must have at most 2 decimal places (e.g., 78.90)';
       }
     }
 
@@ -381,6 +458,50 @@ export default function Apply() {
         const random = Math.floor(1000 + Math.random() * 9000);
         const appId = `APP-${year}-${random}`;
 
+        // 2. Call OCR Verification API
+        let verified = false;
+        let ocrDetails = {};
+        let tActive = false;
+        try {
+          const ocrFormData = new FormData();
+          ocrFormData.append('fullName', trimmedData.fullName);
+          ocrFormData.append('aadhaarNumber', trimmedData.aadhaarNumber);
+          ocrFormData.append('tenthPercentage', trimmedData.tenthPercentage);
+          ocrFormData.append('tenthTotalMarks', trimmedData.tenthTotalMarks);
+          ocrFormData.append('tenthMaxMarks', trimmedData.tenthMaxMarks);
+          ocrFormData.append('twelfthPercentage', trimmedData.twelfthPercentage);
+          ocrFormData.append('twelfthTotalMarks', trimmedData.twelfthTotalMarks);
+          ocrFormData.append('twelfthMaxMarks', trimmedData.twelfthMaxMarks);
+          ocrFormData.append('marksheet10', files.marksheet10);
+          ocrFormData.append('marksheet12', files.marksheet12);
+          ocrFormData.append('idProof', files.idProof);
+
+          const ocrResponse = await axios.post(`${API_BASE}/admissions/verify-ocr`, ocrFormData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          
+          verified = ocrResponse.data.verified;
+          ocrDetails = ocrResponse.data.details;
+          tActive = ocrResponse.data.tesseract_active;
+        } catch (ocrErr) {
+          console.warn('OCR verification unreachable. Defaulting to manual review.', ocrErr);
+          verified = false;
+          ocrDetails = {
+            name_matched: false,
+            aadhaar_matched: false,
+            tenth_matched: false,
+            twelfth_matched: false,
+            error: true
+          };
+        }
+
+        const finalStatus = 'Pending';
+        const assignedStudentId = null;
+        const ocrStatus = verified ? 'Verified' : 'Flagged';
+        const ocrDetailsJson = JSON.stringify(ocrDetails);
+
         // Helper function for uploading to Supabase Storage
         const uploadFile = async (file, type) => {
           const fileExt = file.name.split('.').pop();
@@ -393,16 +514,18 @@ export default function Apply() {
           return data.publicUrl;
         };
 
-        // 2. Upload Documents
-        const marksheet10Url = await uploadFile(files.marksheet10, 'marksheet10');
-        const marksheet12Url = await uploadFile(files.marksheet12, 'marksheet12');
-        const idProofUrl = await uploadFile(files.idProof, 'idProof');
+        // 3. Upload Documents in Parallel
+        const [marksheet10Url, marksheet12Url, idProofUrl] = await Promise.all([
+          uploadFile(files.marksheet10, 'marksheet10'),
+          uploadFile(files.marksheet12, 'marksheet12'),
+          uploadFile(files.idProof, 'idProof')
+        ]);
 
         const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
         const combinedParentPhone = trimmedData.parentPhoneCountryCode === 'Other' ? trimmedData.parentPhone : trimmedData.parentPhoneCountryCode + trimmedData.parentPhone;
 
-        // 3. Insert Application Data
-        const { error: appError } = await supabase.from('applications').insert([{
+        // 4. Insert Application Data (try with new columns first)
+        let insertPayload = {
           id: appId,
           full_name: trimmedData.fullName,
           email: trimmedData.email,
@@ -416,13 +539,38 @@ export default function Apply() {
           aadhaar_number: trimmedData.aadhaarNumber,
           state: trimmedData.state,
           tenth_percentage: parseFloat(trimmedData.tenthPercentage),
+          tenth_total_marks: parseFloat(trimmedData.tenthTotalMarks),
+          tenth_max_marks: parseFloat(trimmedData.tenthMaxMarks),
           twelfth_percentage: parseFloat(trimmedData.twelfthPercentage),
-          status: 'Pending'
-        }]);
+          twelfth_total_marks: parseFloat(trimmedData.twelfthTotalMarks),
+          twelfth_max_marks: parseFloat(trimmedData.twelfthMaxMarks),
+          status: finalStatus,
+          assigned_student_id: assignedStudentId,
+          ocr_status: ocrStatus,
+          ocr_details: ocrDetailsJson
+        };
 
-        if (appError) throw appError;
+        let { error: appError } = await supabase.from('applications').insert([insertPayload]);
+        
+        if (appError) {
+          // If columns don't exist in Supabase (Postgres code 42703), retry without new marks/ocr columns
+          if (appError.code === '42703' || (appError.message && appError.message.includes('column'))) {
+            console.log('New columns not present in Supabase applications table, retrying with default schema.');
+            delete insertPayload.tenth_total_marks;
+            delete insertPayload.tenth_max_marks;
+            delete insertPayload.twelfth_total_marks;
+            delete insertPayload.twelfth_max_marks;
+            delete insertPayload.ocr_status;
+            delete insertPayload.ocr_details;
+            
+            const { error: retryError } = await supabase.from('applications').insert([insertPayload]);
+            if (retryError) throw retryError;
+          } else {
+            throw appError;
+          }
+        }
 
-        // 4. Insert Document Records
+        // 5. Insert Document Records
         const { error: docsError } = await supabase.from('documents').insert([
           { application_id: appId, document_type: '10th Marksheet', file_path: marksheet10Url },
           { application_id: appId, document_type: '12th Marksheet', file_path: marksheet12Url },
@@ -431,6 +579,22 @@ export default function Apply() {
 
         if (docsError) throw docsError;
 
+        // 6. Insert Status History log
+        const logComment = `OCR Pre-verification Report - Name Match: ${ocrDetails.name_matched ? 'SUCCESS' : 'FAILED'}, Aadhaar Match: ${ocrDetails.aadhaar_matched ? 'SUCCESS' : 'FAILED'}, 10th Marks Match: ${ocrDetails.tenth_matched ? 'SUCCESS' : 'FAILED'}, 12th Marks Match: ${ocrDetails.twelfth_matched ? 'SUCCESS' : 'FAILED'}`;
+        
+        const { error: logError } = await supabase.from('status_history').insert([{
+          application_id: appId,
+          status: finalStatus,
+          comments: logComment
+        }]);
+        if (logError) throw logError;
+
+        setOcrResult({
+          verified: verified,
+          studentId: assignedStudentId,
+          details: ocrDetails,
+          tesseractActive: tActive
+        });
         setApplicationId(appId);
         setIsSuccessOpen(true);
       } catch (err) {
@@ -785,44 +949,108 @@ export default function Apply() {
               <span style={{ color: 'var(--color-royal)' }}>03.</span> Academic Background
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-              
-              {/* 10th Percentage */}
+            {/* 10th Grade Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '20px' }}>
               <div className="form-group">
                 <label className="form-label">
-                  10th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                  10th Total Marks Obtained <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="tenthTotalMarks"
+                  value={formData.tenthTotalMarks}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="form-input"
+                  placeholder="e.g. 480"
+                  style={inputStyle(fieldErrors.tenthTotalMarks)}
+                />
+                <FieldError msg={fieldErrors.tenthTotalMarks} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  10th Maximum Marks <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="tenthMaxMarks"
+                  value={formData.tenthMaxMarks}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="form-input"
+                  placeholder="e.g. 500"
+                  style={inputStyle(fieldErrors.tenthMaxMarks)}
+                />
+                <FieldError msg={fieldErrors.tenthMaxMarks} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  10th Grade Percentage (%)
                 </label>
                 <input
                   type="text"
                   name="tenthPercentage"
                   value={formData.tenthPercentage}
+                  readOnly
+                  disabled
+                  className="form-input"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', cursor: 'not-allowed' }}
+                />
+              </div>
+            </div>
+
+            {/* 12th Grade Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px' }}>
+              <div className="form-group">
+                <label className="form-label">
+                  12th Total Marks Obtained <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="twelfthTotalMarks"
+                  value={formData.twelfthTotalMarks}
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   className="form-input"
-                  placeholder="e.g. 92.50"
-                  style={inputStyle(fieldErrors.tenthPercentage)}
+                  placeholder="e.g. 570"
+                  style={inputStyle(fieldErrors.twelfthTotalMarks)}
                 />
-                <FieldError msg={fieldErrors.tenthPercentage} />
+                <FieldError msg={fieldErrors.twelfthTotalMarks} />
               </div>
 
-              {/* 12th Percentage */}
               <div className="form-group">
                 <label className="form-label">
-                  12th Grade Percentage (%) <span style={{ color: '#ef4444' }}>*</span>
+                  12th Maximum Marks <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="twelfthMaxMarks"
+                  value={formData.twelfthMaxMarks}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="form-input"
+                  placeholder="e.g. 600"
+                  style={inputStyle(fieldErrors.twelfthMaxMarks)}
+                />
+                <FieldError msg={fieldErrors.twelfthMaxMarks} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  12th Grade Percentage (%)
                 </label>
                 <input
                   type="text"
                   name="twelfthPercentage"
                   value={formData.twelfthPercentage}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
+                  readOnly
+                  disabled
                   className="form-input"
-                  placeholder="e.g. 88.40"
-                  style={inputStyle(fieldErrors.twelfthPercentage)}
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', cursor: 'not-allowed' }}
                 />
-                <FieldError msg={fieldErrors.twelfthPercentage} />
               </div>
-
             </div>
           </div>
 
@@ -1035,6 +1263,7 @@ export default function Apply() {
       <SuccessModal
         isOpen={isSuccessOpen}
         applicationId={applicationId}
+        ocrResult={ocrResult}
         onClose={() => {
           setIsSuccessOpen(false);
           window.location.href = `/track?id=${applicationId}`;

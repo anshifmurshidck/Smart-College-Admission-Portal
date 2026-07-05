@@ -22,6 +22,46 @@ import {
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
+const getOcrReport = (app, timeline) => {
+  // 1. First try database columns
+  if (app && app.ocr_status && app.ocr_status !== 'Not Processed') {
+    try {
+      const details = app.ocr_details ? JSON.parse(app.ocr_details) : {};
+      return {
+        ocrStatus: app.ocr_status,
+        details: details
+      };
+    } catch (e) {
+      // ignore JSON parse error
+    }
+  }
+  
+  // 2. Fallback to status history timeline comment
+  if (timeline && timeline.length > 0) {
+    const firstLog = timeline.find(log => log.comments && log.comments.includes('OCR Pre-verification Report'));
+    if (firstLog) {
+      const comment = firstLog.comments;
+      const name_matched = comment.includes('Name Match: SUCCESS');
+      const aadhaar_matched = comment.includes('Aadhaar Match: SUCCESS');
+      const tenth_matched = comment.includes('10th Marks Match: SUCCESS');
+      const twelfth_matched = comment.includes('12th Marks Match: SUCCESS');
+      const verified = name_matched && aadhaar_matched && tenth_matched && twelfth_matched;
+      
+      return {
+        ocrStatus: verified ? 'Verified' : 'Flagged',
+        details: {
+          name_matched,
+          aadhaar_matched,
+          tenth_matched,
+          twelfth_matched
+        }
+      };
+    }
+  }
+  
+  return null;
+};
+
 export default function ApplicationsList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -635,12 +675,98 @@ export default function ApplicationsList() {
                     <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '16px' }}>
                       Academic Background
                     </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13px' }}>
-                      <div>10th Percentage: <strong>{modalDetails.application.tenth_percentage}%</strong></div>
-                      <div>12th Percentage: <strong>{modalDetails.application.twelfth_percentage}%</strong></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 16px', fontSize: '13px' }}>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>10th Grade Details</div>
+                        <div style={{ marginTop: '4px' }}>
+                          Percentage: <strong>{modalDetails.application.tenth_percentage}%</strong>
+                        </div>
+                        {modalDetails.application.tenth_total_marks !== undefined && modalDetails.application.tenth_total_marks !== null && (
+                          <div style={{ marginTop: '2px' }}>
+                            Marks: <strong>{modalDetails.application.tenth_total_marks} / {modalDetails.application.tenth_max_marks}</strong>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>12th Grade Details</div>
+                        <div style={{ marginTop: '4px' }}>
+                          Percentage: <strong>{modalDetails.application.twelfth_percentage}%</strong>
+                        </div>
+                        {modalDetails.application.twelfth_total_marks !== undefined && modalDetails.application.twelfth_total_marks !== null && (
+                          <div style={{ marginTop: '2px' }}>
+                            Marks: <strong>{modalDetails.application.twelfth_total_marks} / {modalDetails.application.twelfth_max_marks}</strong>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
+
+                {/* OCR Pre-verification Card */}
+                {(() => {
+                  const report = getOcrReport(modalDetails.application, modalDetails.timeline);
+                  if (!report) return null;
+                  
+                  const isVerified = report.ocrStatus === 'Verified';
+                  
+                  return (
+                    <div style={{
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '16px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      marginTop: '16px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🔍 AI OCR Verification Report
+                        </span>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          textTransform: 'uppercase',
+                          backgroundColor: isVerified ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          color: isVerified ? '#059669' : '#d97706'
+                        }}>
+                          {report.ocrStatus}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Applicant Name:</span>
+                          <span style={{ fontWeight: '700', color: report.details.name_matched ? '#059669' : '#ef4444' }}>
+                            {report.details.name_matched ? '✓ Match' : '✗ Mismatch'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Aadhaar Number:</span>
+                          <span style={{ fontWeight: '700', color: report.details.aadhaar_matched ? '#059669' : '#ef4444' }}>
+                            {report.details.aadhaar_matched ? '✓ Match' : '✗ Mismatch'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>10th Marksheet:</span>
+                          <span style={{ fontWeight: '700', color: report.details.tenth_matched ? '#059669' : '#ef4444' }}>
+                            {report.details.tenth_matched ? '✓ Match' : '✗ Mismatch'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>12th Marksheet:</span>
+                          <span style={{ fontWeight: '700', color: report.details.twelfth_matched ? '#059669' : '#ef4444' }}>
+                            {report.details.twelfth_matched ? '✓ Match' : '✗ Mismatch'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Applied Course info */}
                 <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', padding: '16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-primary)' }}>
