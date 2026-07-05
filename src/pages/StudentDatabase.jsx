@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import axios from 'axios';
 import {
   Search, Edit2, Trash2, Download, User, AlertCircle,
   X, Phone, Mail, Calendar, GraduationCap, ChevronLeft, ChevronRight, CheckCircle,
-  MapPin, Hash, Award, FileCheck, ExternalLink
+  MapPin, Hash, Award, FileCheck, ExternalLink, Sparkles, MessageSquare, Send, CornerDownLeft, Loader2
 } from 'lucide-react';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -94,6 +95,358 @@ export default function StudentDatabase() {
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
   const token = () => localStorage.getItem('adminToken');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
+
+  // AI Chatbot Sidebar States
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: 'welcome',
+      sender: 'bot',
+      text: 'Hello! I am your AI Student Database Assistant. Ask me anything about student records, department averages, state distributions, or individual profiles.',
+      timestamp: new Date()
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [isGeminiActive, setIsGeminiActive] = useState(true);
+  const chatMessagesEndRef = useRef(null);
+
+  // Auto-scroll chat history
+  useEffect(() => {
+    if (isChatOpen) {
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isChatOpen]);
+
+  // Inject Chatbot styles on mount
+  useEffect(() => {
+    const styleId = 'student-chatbot-styles-injected';
+    if (document.getElementById(styleId)) return;
+
+    const styles = document.createElement('style');
+    styles.id = styleId;
+    styles.innerHTML = `
+      .db-chatbot-bubble {
+        max-width: 85%;
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        position: relative;
+        font-size: 13px;
+        line-height: 1.5;
+        box-shadow: var(--shadow-card);
+        color: var(--text-primary);
+      }
+      .db-chatbot-row {
+        display: flex;
+        width: 100%;
+      }
+      .db-chatbot-row.user { justify-content: flex-end; }
+      .db-chatbot-row.bot { justify-content: flex-start; }
+      
+      .db-chatbot-row.user .db-chatbot-bubble {
+        background: linear-gradient(135deg, var(--color-royal) 0%, rgba(37, 99, 235, 0.8) 100%);
+        color: white;
+        border-top-right-radius: 2px;
+      }
+      .db-chatbot-row.bot .db-chatbot-bubble {
+        background: var(--bg-glass-light);
+        border: 1px solid var(--border-glass);
+        border-top-left-radius: 2px;
+      }
+      
+      .db-chatbot-link {
+        color: var(--color-sky);
+        text-decoration: underline;
+        font-weight: 500;
+      }
+      .db-chatbot-link:hover {
+        color: var(--color-royal-light);
+      }
+      .db-chatbot-code {
+        background: rgba(0,0,0,0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 11px;
+      }
+      
+      .db-chatbot-textarea {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-primary);
+        font-size: 13px;
+        resize: none;
+        max-height: 60px;
+        height: 20px;
+        line-height: 20px;
+        padding: 2px 0;
+      }
+      .db-chatbot-textarea::placeholder {
+        color: var(--text-muted);
+      }
+      
+      .db-chatbot-typing {
+        display: flex;
+        gap: 4px;
+        padding: 4px 6px;
+        align-items: center;
+      }
+      .db-chatbot-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background-color: var(--text-secondary);
+        animation: dbChatbotDotWave 1.4s infinite ease-in-out both;
+      }
+      .db-chatbot-dot:nth-child(1) { animation-delay: -0.32s; }
+      .db-chatbot-dot:nth-child(2) { animation-delay: -0.16s; }
+      
+      @keyframes dbChatbotDotWave {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+      
+      /* Rich Card styling */
+      .db-chatbot-card {
+        margin-top: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border-glass);
+        border-radius: var(--radius-sm);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .db-chatbot-card-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 11px;
+      }
+      .db-chatbot-card-label {
+        color: var(--text-secondary);
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+      .db-chatbot-card-value {
+        color: var(--text-primary);
+        font-weight: 600;
+        text-align: right;
+        word-break: break-word;
+      }
+      .db-chatbot-card-btn {
+        margin-top: 4px;
+        padding: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        text-align: center;
+        border-radius: var(--radius-sm);
+        border: none;
+        background: var(--color-royal);
+        color: white;
+        cursor: pointer;
+        transition: var(--transition-fast);
+      }
+      .db-chatbot-card-btn:hover {
+        background: var(--color-royal-light);
+      }
+    `;
+    document.head.appendChild(styles);
+  }, []);
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userText = chatInput;
+    setChatInput('');
+    setChatLoading(true);
+
+    const userMsgId = `msg-${Date.now()}`;
+    const newMessages = [
+      ...chatMessages,
+      {
+        id: userMsgId,
+        sender: 'user',
+        text: userText,
+        timestamp: new Date()
+      }
+    ];
+    setChatMessages(newMessages);
+
+    try {
+      const chatHistory = newMessages.map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        parts: [m.text]
+      }));
+
+      const response = await axios.post(
+        `${API_BASE}/admin/chat`,
+        {
+          message: userText,
+          history: chatHistory.slice(-10)
+        },
+        {
+          headers: authHeaders()
+        }
+      );
+
+      setIsGeminiActive(response.data.gemini_active !== false);
+
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-bot`,
+          sender: 'bot',
+          text: response.data.reply,
+          metadata: response.data.metadata,
+          timestamp: new Date()
+        }
+      ]);
+    } catch (err) {
+      console.error(err);
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-err`,
+          sender: 'bot',
+          text: '⚠️ **System Error**: Could not deliver message. Please ensure the backend is running and you are authenticated.',
+          timestamp: new Date()
+        }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleChatKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendChatMessage();
+    }
+  };
+
+  const renderMessageText = (text) => {
+    if (!text) return '';
+    const lines = text.split('\n');
+    const rendered = [];
+    
+    let inList = false;
+    let listItems = [];
+    let inTable = false;
+    let tableRows = [];
+    
+    const parseInline = (str) => {
+      let escaped = str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      escaped = escaped.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      escaped = escaped.replace(/`([^`]+)`/g, '<code class="db-chatbot-code">$1</code>');
+      escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="db-chatbot-link">$1</a>');
+      return escaped;
+    };
+
+    const renderTable = (rows, key) => {
+      const parsedRows = rows.map(r => r.split('|').map(cell => cell.trim()).filter((c, idx, arr) => idx > 0 && idx < arr.length - 1));
+      const contentRows = parsedRows.filter(r => !r.every(cell => cell.startsWith('-')));
+      if (contentRows.length === 0) return null;
+      const headers = contentRows[0];
+      const body = contentRows.slice(1);
+      return (
+        <div key={`table-${key}`} style={{ overflowX: 'auto', margin: '8px 0', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-glass)' }}>
+                {headers.map((h, idx) => (
+                  <th key={idx} style={{ padding: '4px 8px', fontWeight: '700', color: 'var(--text-primary)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((row, rIdx) => (
+                <tr key={rIdx} style={{ borderBottom: rIdx < body.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                  {row.map((cell, cIdx) => (
+                    <td key={cIdx} style={{ padding: '4px 8px', color: 'var(--text-secondary)' }} dangerouslySetInnerHTML={{ __html: parseInline(cell) }} />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('* ') || line.startsWith('- ')) {
+        if (inTable) {
+          rendered.push(renderTable(tableRows, i));
+          inTable = false;
+          tableRows = [];
+        }
+        inList = true;
+        listItems.push(line.substring(2));
+        continue;
+      }
+      
+      if (inList && !line.startsWith('* ') && !line.startsWith('- ')) {
+        rendered.push(
+          <ul key={`list-${i}`} style={{ paddingLeft: '16px', margin: '4px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {listItems.map((item, idx) => (
+              <li key={idx} dangerouslySetInnerHTML={{ __html: parseInline(item) }} />
+            ))}
+          </ul>
+        );
+        inList = false;
+        listItems = [];
+      }
+      
+      if (line.startsWith('|')) {
+        inTable = true;
+        tableRows.push(line);
+        continue;
+      }
+      
+      if (inTable && !line.startsWith('|')) {
+        rendered.push(renderTable(tableRows, i));
+        inTable = false;
+        tableRows = [];
+      }
+      
+      if (line === '') {
+        rendered.push(<div key={`br-${i}`} style={{ height: '4px' }} />);
+        continue;
+      }
+      
+      if (line.startsWith('### ')) {
+        rendered.push(<h5 key={`h-${i}`} style={{ margin: '8px 0 2px 0', fontWeight: '700', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: parseInline(line.substring(4)) }} />);
+      } else if (line.startsWith('## ')) {
+        rendered.push(<h4 key={`h-${i}`} style={{ margin: '10px 0 4px 0', fontWeight: '700', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: parseInline(line.substring(3)) }} />);
+      } else if (line.startsWith('# ')) {
+        rendered.push(<h3 key={`h-${i}`} style={{ margin: '12px 0 6px 0', fontWeight: '800', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: parseInline(line.substring(2)) }} />);
+      } else {
+        rendered.push(<p key={`p-${i}`} style={{ margin: '2px 0', lineHeight: '1.4', color: 'var(--text-secondary)' }} dangerouslySetInnerHTML={{ __html: parseInline(line) }} />);
+      }
+    }
+    
+    if (inList) {
+      rendered.push(
+        <ul key="list-end" style={{ paddingLeft: '16px', margin: '4px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {listItems.map((item, idx) => (
+            <li key={idx} dangerouslySetInnerHTML={{ __html: parseInline(item) }} />
+          ))}
+        </ul>
+      );
+    }
+    if (inTable) {
+      rendered.push(renderTable(tableRows, 'end'));
+    }
+    return rendered;
+  };
 
   const loadStudents = async () => {
     setLoading(true);
@@ -424,108 +777,286 @@ export default function StudentDatabase() {
   const paginated = students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h2 style={{ fontSize: '28px', fontWeight: '800', fontFamily: 'var(--font-secondary)' }}>Student Database</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
-            {students.length} enrolled student{students.length !== 1 ? 's' : ''} total
-          </p>
+    <div style={{ display: 'flex', gap: '30px', position: 'relative', alignItems: 'flex-start' }}>
+      
+      {/* Left Main Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '30px', minWidth: 0 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '28px', fontWeight: '800', fontFamily: 'var(--font-secondary)' }}>Student Database</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
+              {students.length} enrolled student{students.length !== 1 ? 's' : ''} total
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button 
+              onClick={() => setIsChatOpen(!isChatOpen)} 
+              className={`btn-ripple ${isChatOpen ? 'btn-primary' : 'btn-secondary'}`} 
+              style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}
+            >
+              <Sparkles size={16} /> AI Assistant
+            </button>
+            <button onClick={handleCSVExport} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button onClick={handleCSVExport} className="btn-ripple btn-secondary" style={{ padding: '10px 16px', display: 'flex', gap: '8px', fontSize: '13px', alignItems: 'center' }}>
-            <Download size={16} /> Export CSV
-          </button>
-        </div>
-      </div>
 
-      {/* Filters */}
-      <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} className="form-input" placeholder="Search by name, ID, email..." style={{ paddingLeft: '40px' }} />
+        {/* Filters */}
+        <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+            <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} className="form-input" placeholder="Search by name, ID, email..." style={{ paddingLeft: '40px' }} />
+          </div>
+          <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="form-select" style={{ padding: '10px 14px', fontSize: '13px' }}>
+            <option value="">All Departments</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
         </div>
-        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="form-select" style={{ padding: '10px 14px', fontSize: '13px' }}>
-          <option value="">All Departments</option>
-          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-      </div>
 
-      {/* Students Table */}
-      <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
-        {loading ? <TableSkeleton cols={5} rows={8} /> :
-          errorMsg ? (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}>
-              <AlertCircle size={36} style={{ margin: '0 auto 12px auto' }} />
-              <p>{errorMsg}</p>
-            </div>
-          ) : students.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-              <GraduationCap size={48} style={{ margin: '0 auto 16px auto', opacity: 0.3 }} />
-              <h4 style={{ fontSize: '18px', fontWeight: '600' }}>No Students Found</h4>
-              <p style={{ fontSize: '14px', marginTop: '8px' }}>Approve applicants to see them here, or add one manually.</p>
-            </div>
-          ) : (
-            <>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600' }}>
-                    <th style={{ padding: '12px 16px' }}>Student ID</th>
-                    <th style={{ padding: '12px 16px' }}>Full Name</th>
-                    <th style={{ padding: '12px 16px' }}>Department</th>
-                    <th style={{ padding: '12px 16px' }}>Email</th>
-                    <th style={{ padding: '12px 16px' }}>Enroll Date</th>
-                    <th style={{ padding: '12px 16px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
-                      onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
-                      onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                      onClick={() => viewStudent(s.id)}
-                    >
-                      <td style={{ padding: '14px 16px', fontWeight: '800', color: 'var(--color-royal)', fontFamily: 'var(--font-display)' }}>{s.id}</td>
-                      <td style={{ padding: '14px 16px', fontWeight: '600' }}>{s.full_name}</td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-purple)', backgroundColor: 'rgba(124,58,237,0.08)', padding: '3px 8px', borderRadius: '4px' }}>
-                          {s.department_name}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{s.email}</td>
-                      <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{String(s.enroll_date).substring(0, 10)}</td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={e => { e.stopPropagation(); viewStudent(s.id); setEditMode(true); }} style={{ padding: '6px', border: 'none', background: 'rgba(37,99,235,0.08)', color: 'var(--color-royal)', borderRadius: '6px', cursor: 'pointer' }}>
-                            <Edit2 size={14} />
-                          </button>
-                          <button onClick={e => { e.stopPropagation(); setDeleteTarget(s.id); }} style={{ padding: '6px', border: 'none', background: 'rgba(239,68,68,0.08)', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
+        {/* Students Table */}
+        <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+          {loading ? <TableSkeleton cols={5} rows={8} /> :
+            errorMsg ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}>
+                <AlertCircle size={36} style={{ margin: '0 auto 12px auto' }} />
+                <p>{errorMsg}</p>
+              </div>
+            ) : students.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                <GraduationCap size={48} style={{ margin: '0 auto 16px auto', opacity: 0.3 }} />
+                <h4 style={{ fontSize: '18px', fontWeight: '600' }}>No Students Found</h4>
+                <p style={{ fontSize: '14px', marginTop: '8px' }}>Approve applicants to see them here, or add one manually.</p>
+              </div>
+            ) : (
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600' }}>
+                      <th style={{ padding: '12px 16px' }}>Student ID</th>
+                      <th style={{ padding: '12px 16px' }}>Full Name</th>
+                      <th style={{ padding: '12px 16px' }}>Department</th>
+                      <th style={{ padding: '12px 16px' }}>Email</th>
+                      <th style={{ padding: '12px 16px' }}>Enroll Date</th>
+                      <th style={{ padding: '12px 16px' }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paginated.map(s => (
+                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        onClick={() => viewStudent(s.id)}
+                      >
+                        <td style={{ padding: '14px 16px', fontWeight: '800', color: 'var(--color-royal)', fontFamily: 'var(--font-display)' }}>{s.id}</td>
+                        <td style={{ padding: '14px 16px', fontWeight: '600' }}>{s.full_name}</td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-purple)', backgroundColor: 'rgba(124,58,237,0.08)', padding: '3px 8px', borderRadius: '4px' }}>
+                            {s.department_name}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{s.email}</td>
+                        <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{String(s.enroll_date).substring(0, 10)}</td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={e => { e.stopPropagation(); viewStudent(s.id); setEditMode(true); }} style={{ padding: '6px', border: 'none', background: 'rgba(37,99,235,0.08)', color: 'var(--color-royal)', borderRadius: '6px', cursor: 'pointer' }}>
+                              <Edit2 size={14} />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setDeleteTarget(s.id); }} style={{ padding: '6px', border: 'none', background: 'rgba(239,68,68,0.08)', color: '#ef4444', borderRadius: '6px', cursor: 'pointer' }}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-              {/* Pagination */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                <span>Page {page} of {totalPages} — {students.length} records</span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
-                    <ChevronRight size={14} />
-                  </button>
+                {/* Pagination */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <span>Page {page} of {totalPages} — {students.length} records</span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )
+          }
+        </div>
+      </div>
+
+      {/* Right Collapsible AI Sidebar */}
+      {isChatOpen && (
+        <div style={{
+          width: '420px',
+          flexShrink: 0,
+          background: 'var(--bg-glass)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid var(--border-glass)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-premium)',
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100vh - 120px)',
+          position: 'sticky',
+          top: '32px',
+          overflow: 'hidden',
+          zIndex: 90
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '16px 20px',
+            background: 'rgba(15, 23, 42, 0.4)',
+            borderBottom: '1px solid var(--border-glass)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, var(--color-royal) 0%, var(--color-purple) 100%)',
+                padding: '4px',
+                borderRadius: '6px',
+                display: 'flex'
+              }}>
+                <Sparkles size={16} color="white" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: '700', fontSize: '14px', fontFamily: 'var(--font-secondary)' }}>AI Database Assistant</span>
+                {isGeminiActive ? (
+                  <span style={{ fontSize: '9px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                    GEMINI AI ACTIVE
+                  </span>
+                ) : (
+                  <span title="To enable Gemini AI, add GEMINI_API_KEY to your backend/.env file" style={{ fontSize: '9px', color: '#f59e0b', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'help' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }}></span>
+                    LOCAL ENGINE MODE
+                  </span>
+                )}
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsChatOpen(false)} 
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            scrollBehavior: 'smooth'
+          }}>
+            {chatMessages.map((m) => (
+              <div key={m.id} className={`db-chatbot-row ${m.sender}`}>
+                <div className="db-chatbot-bubble">
+                  {renderMessageText(m.text)}
+
+                  {m.metadata && m.metadata.type === 'student' && (
+                    <div className="db-chatbot-card">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px' }}>
+                        <User size={12} style={{ color: 'var(--color-purple-light)' }} />
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--color-sky)' }}>Student Profile</span>
+                      </div>
+                      <div className="db-chatbot-card-row">
+                        <span className="db-chatbot-card-label">ID</span>
+                        <span className="db-chatbot-card-value">{m.metadata.id}</span>
+                      </div>
+                      <div className="db-chatbot-card-row">
+                        <span className="db-chatbot-card-label">Name</span>
+                        <span className="db-chatbot-card-value">{m.metadata.details.name}</span>
+                      </div>
+                      <div className="db-chatbot-card-row">
+                        <span className="db-chatbot-card-label">Department</span>
+                        <span className="db-chatbot-card-value">{m.metadata.details.department}</span>
+                      </div>
+                      <button 
+                        onClick={() => viewStudent(m.metadata.id)}
+                        className="db-chatbot-card-btn"
+                      >
+                        Inspect Student Details
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </>
-          )
-        }
-      </div>
+            ))}
+
+            {chatLoading && (
+              <div className="db-chatbot-row bot">
+                <div className="db-chatbot-bubble">
+                  <div className="db-chatbot-typing">
+                    <span className="db-chatbot-dot"></span>
+                    <span className="db-chatbot-dot"></span>
+                    <span className="db-chatbot-dot"></span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatMessagesEndRef} />
+          </div>
+
+          {/* Footer Input */}
+          <div style={{
+            padding: '16px 20px',
+            background: 'rgba(15, 23, 42, 0.4)',
+            borderTop: '1px solid var(--border-glass)'
+          }}>
+            <div style={{
+              display: 'flex',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: 'var(--radius-sm)',
+              overflow: 'hidden',
+              alignItems: 'center',
+              padding: '6px 10px'
+            }}>
+              <textarea 
+                className="db-chatbot-textarea" 
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                placeholder="Query database stats/students..."
+                rows={1}
+              />
+              <button 
+                onClick={handleSendChatMessage} 
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: chatInput.trim() && !chatLoading ? 'var(--color-royal-light)' : 'var(--text-secondary)',
+                  cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                disabled={!chatInput.trim() || chatLoading}
+              >
+                {chatLoading ? <Loader2 size={14} className="animate-spin" /> : <CornerDownLeft size={14} />}
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <span>Enter to send</span>
+              <span>{isGeminiActive ? 'Gemini AI Connected' : 'Local Database Engine'}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Student Detail Drawer */}
       {selectedStudent && (

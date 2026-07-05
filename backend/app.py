@@ -9,6 +9,7 @@ from backend.routes.admissions import admissions_bp
 from backend.routes.admin_api import admin_api_bp
 from backend.routes.departments import departments_bp
 from backend.routes.reports import reports_bp
+from backend.routes.chatbot import chatbot_bp
 
 # Initialize DB Manager to trigger schema check / setup on boot
 from backend.db import db
@@ -31,6 +32,7 @@ def create_app():
     app.register_blueprint(admin_api_bp, url_prefix='/api/admin')
     app.register_blueprint(departments_bp, url_prefix='/api/departments')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
+    app.register_blueprint(chatbot_bp, url_prefix='/api/admin')
 
     # Serve uploaded documents statically
     @app.route('/uploads/<path:filename>')

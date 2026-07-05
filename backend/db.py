@@ -100,6 +100,9 @@ class DatabaseManager:
         # Seed admin with proper password hash after schema is ready
         self._seed_admin()
 
+        # Sync live data from Supabase REST API
+        self.sync_supabase_data()
+
     def _seed_admin(self):
         """Ensures default admin account exists with a proper werkzeug password hash."""
         try:
@@ -118,8 +121,121 @@ class DatabaseManager:
                 new_hash = generate_password_hash('admin123')
                 self.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
                 print("[DB MANAGER] Default admin password hash initialized.")
+
+            # Seed dummy approved students if applications table is empty
+            apps_count = self.execute_read_one("SELECT COUNT(*) as count FROM applications")['count']
+            if apps_count == 0:
+                print("[DB MANAGER] Seeding approved student records for local database testing...")
+                # Insert 3 students
+                self.execute_write(
+                    """INSERT INTO applications 
+                       (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, status, assigned_student_id) 
+                       VALUES 
+                       (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    ('APP-2026-0001', 'Arjun Mehta', 'arjun.mehta@gmail.com', '+919876543210', '123 Park Avenue, Mumbai', '2005-04-12', 'Male', 'Ramesh Mehta', '+919876543211', 1, '123456789012', 'Maharashtra', 92.50, 95.80, 'Approved', 'TMEC-2026-0001')
+                )
+                self.execute_write(
+                    """INSERT INTO applications 
+                       (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, status, assigned_student_id) 
+                       VALUES 
+                       (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    ('APP-2026-0002', 'Sneha Iyer', 'sneha.iyer@yahoo.com', '+918765432109', '456 Garden Lane, Bangalore', '2006-08-24', 'Female', 'Suresh Iyer', '+918765432108', 2, '234567890123', 'Karnataka', 88.00, 91.20, 'Approved', 'TMEC-2026-0002')
+                )
+                self.execute_write(
+                    """INSERT INTO applications 
+                       (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, status, assigned_student_id) 
+                       VALUES 
+                       (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    ('APP-2026-0003', 'Rohan Sharma', 'rohan.sharma@outlook.com', '+917654321098', '789 Hill Top, New Delhi', '2005-11-05', 'Male', 'Vijay Sharma', '+917654321097', 1, '345678901234', 'Delhi', 95.20, 89.40, 'Approved', 'TMEC-2026-0003')
+                )
+                print("[DB MANAGER] Seeding completed.")
         except Exception as e:
-            print(f"[DB MANAGER] Admin seed warning: {e}")
+            print(f"[DB MANAGER] Admin/Student seed warning: {e}")
+
+    def sync_supabase_data(self):
+        """Fetches approved applications from Supabase REST API and syncs with the local database."""
+        try:
+            import requests
+            # Load root .env file variables if possible
+            root_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "Smart-College-Admission-Portal", ".env")
+            if not os.path.exists(root_env_path):
+                # Fallback to current directory root
+                root_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+                
+            supabase_url = None
+            supabase_key = None
+            
+            if os.path.exists(root_env_path):
+                with open(root_env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("VITE_SUPABASE_URL="):
+                            supabase_url = line.split("=", 1)[1].strip()
+                        elif line.strip().startswith("VITE_SUPABASE_ANON_KEY="):
+                            supabase_key = line.split("=", 1)[1].strip()
+            
+            if not supabase_url or not supabase_key:
+                # Direct fallback check of system/config env variables
+                supabase_url = os.getenv("VITE_SUPABASE_URL") or "https://evskpbbqojkclyyjvpjr.supabase.co"
+                supabase_key = os.getenv("VITE_SUPABASE_ANON_KEY") or "sb_publishable_6cV57fiEzgN8GVbr-m3B9w_S6i6SuXs"
+                
+            if not supabase_url or not supabase_key:
+                print("[DB SYNC] Supabase credentials not found. Skipping sync.")
+                return
+
+            print(f"[DB SYNC] Fetching approved applications from Supabase: {supabase_url}")
+            url = f"{supabase_url.rstrip('/')}/rest/v1/applications?status=eq.Approved"
+            headers = {
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {supabase_key}"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"[DB SYNC] Supabase request failed with status: {response.status_code}")
+                return
+                
+            applications = response.json()
+            print(f"[DB SYNC] Syncing {len(applications)} student records into local database...")
+            
+            for app in applications:
+                # Upsert into applications table
+                # Check if application already exists
+                existing = self.execute_read_one("SELECT id FROM applications WHERE id = %s", (app["id"],))
+                
+                # Format decimal percentages safely
+                tenth = float(app["tenth_percentage"]) if app.get("tenth_percentage") is not None else None
+                twelfth = float(app["twelfth_percentage"]) if app.get("twelfth_percentage") is not None else None
+                
+                # Format timestamps cleanly (removing timezone suffix for standard MySQL/SQLite parse)
+                created_at = app["created_at"].split(".")[0].replace("T", " ") if app.get("created_at") else None
+                updated_at = app["updated_at"].split(".")[0].replace("T", " ") if app.get("updated_at") else None
+                
+                if existing:
+                    self.execute_write(
+                        """UPDATE applications SET 
+                           full_name=%s, email=%s, phone=%s, address=%s, dob=%s, gender=%s, 
+                           parent_name=%s, parent_phone=%s, department_id=%s, aadhaar_number=%s, 
+                           state=%s, tenth_percentage=%s, twelfth_percentage=%s, status=%s, 
+                           assigned_student_id=%s WHERE id=%s""",
+                        (app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
+                         app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
+                         app.get("state"), tenth, twelfth, app["status"], app.get("assigned_student_id"), app["id"])
+                    )
+                else:
+                    self.execute_write(
+                        """INSERT INTO applications 
+                           (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, 
+                            department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, 
+                            status, assigned_student_id) 
+                           VALUES 
+                           (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                        (app["id"], app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
+                         app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
+                         app.get("state"), tenth, twelfth, app["status"], app.get("assigned_student_id"))
+                    )
+            print("[DB SYNC] Supabase database sync completed successfully.")
+        except Exception as e:
+            print(f"[DB SYNC] Error syncing Supabase data: {e}")
 
 
 

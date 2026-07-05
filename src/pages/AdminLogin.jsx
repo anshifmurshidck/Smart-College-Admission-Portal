@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { Lock, User, AlertCircle } from 'lucide-react';
 
 export default function AdminLogin() {
@@ -22,7 +23,7 @@ export default function AdminLogin() {
     }
   }, [navigate]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!username || !password) {
       setErrorMsg('Username and password are required.');
@@ -32,17 +33,23 @@ export default function AdminLogin() {
     setErrorMsg('');
     setLoading(true);
 
-    setTimeout(() => {
-      if (username === 'admin' && password === 'admin123') {
-        localStorage.setItem('adminToken', 'dummy-admin-token-12345');
-        localStorage.setItem('adminData', JSON.stringify({ username: 'admin', name: 'Super Admin', role: 'super_admin' }));
-        setLoading(false);
-        navigate('/admin/dashboard');
-      } else {
-        setErrorMsg('Login failed. Verify credentials and try again.');
-        setLoading(false);
-      }
-    }, 800);
+    try {
+      const response = await axios.post(`${API_BASE}/auth/login`, {
+        username,
+        password
+      });
+
+      const { token, admin } = response.data;
+      localStorage.setItem('adminToken', token);
+      localStorage.setItem('adminData', JSON.stringify(admin));
+      setLoading(false);
+      navigate('/admin/dashboard');
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Login failed. Verify credentials and try again.';
+      setErrorMsg(errMsg);
+      setLoading(false);
+    }
   };
 
   const handleForgotSubmit = (e) => {
