@@ -5,6 +5,7 @@ import {
   BookOpen, CheckCircle2, ShieldCheck, Cpu, BrainCircuit,
   Radio, Wrench, Building2, ChevronRight
 } from 'lucide-react';
+import Chatbot from '../components/Chatbot';
 
 /* ─── Floating Particle Component ─────────────────────────────── */
 function Particle({ style }) {
@@ -923,6 +924,7 @@ export default function Home() {
         </div>
       </section>
 
+      <Chatbot />
     </div>
   );
 }
