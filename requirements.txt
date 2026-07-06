@@ -13,3 +13,4 @@ easyocr
 PyMuPDF
 Pillow
 numpy
+google-generativeai

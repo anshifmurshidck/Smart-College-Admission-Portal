@@ -215,23 +215,23 @@ class DatabaseManager:
                         """UPDATE applications SET 
                            full_name=%s, email=%s, phone=%s, address=%s, dob=%s, gender=%s, 
                            parent_name=%s, parent_phone=%s, department_id=%s, aadhaar_number=%s, 
-                           state=%s, tenth_percentage=%s, twelfth_percentage=%s, status=%s, 
-                           assigned_student_id=%s WHERE id=%s""",
+                           state=%s, tenth_percentage=%s, tenth_total_marks=%s, tenth_max_marks=%s, twelfth_percentage=%s, twelfth_total_marks=%s, twelfth_max_marks=%s, status=%s, 
+                           assigned_student_id=%s, ocr_status=%s, ocr_details=%s WHERE id=%s""",
                         (app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
                          app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
-                         app.get("state"), tenth, twelfth, app["status"], app.get("assigned_student_id"), app["id"])
+                         app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), app["status"], app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"), app["id"])
                     )
                 else:
                     self.execute_write(
                         """INSERT INTO applications 
                            (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, 
-                            department_id, aadhaar_number, state, tenth_percentage, twelfth_percentage, 
-                            status, assigned_student_id) 
+                            department_id, aadhaar_number, state, tenth_percentage, tenth_total_marks, tenth_max_marks, twelfth_percentage, twelfth_total_marks, twelfth_max_marks, 
+                            status, assigned_student_id, ocr_status, ocr_details) 
                            VALUES 
-                           (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                           (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                         (app["id"], app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
                          app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
-                         app.get("state"), tenth, twelfth, app["status"], app.get("assigned_student_id"))
+                         app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), app["status"], app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"))
                     )
             print("[DB SYNC] Supabase database sync completed successfully.")
         except Exception as e:
