@@ -6,12 +6,18 @@ import requests
 import pytesseract
 import pypdf
 from PIL import Image
+import easyocr
+import fitz
+import numpy as np
+from io import BytesIO
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from backend.db import db
 from backend.config import Config
 
+
 admissions_bp = Blueprint('admissions', __name__)
+reader = easyocr.Reader(['en'], gpu=False)
 
 import shutil
 # Dynamic Windows Tesseract executable auto-discovery
@@ -94,6 +100,22 @@ def extract_text_from_file(file_path):
     else:
         return extract_text_from_image(file_path)
 
+def extract_text_easyocr(file_path):
+    text_content = try_read_as_text(file_path)
+    if text_content:
+        return text_content
+        
+    ext = file_path.rsplit('.', 1)[1].lower() if '.' in file_path else ''
+    if ext == 'pdf':
+        return extract_text_from_pdf(file_path)
+    
+    try:
+        result = reader.readtext(file_path)
+        text = " ".join([res[1] for res in result])
+        return text
+    except Exception as e:
+        print(f"[EasyOCR] Error: {e}")
+        return ""
 def verify_percentage_in_text(text, target_pct):
     if not target_pct:
         return True
@@ -222,10 +244,11 @@ def verify_ocr():
         marksheet12.save(m12_path)
         id_proof.save(id_path)
 
-        # Extract texts
-        m10_text = extract_text_from_file(m10_path)
-        m12_text = extract_text_from_file(m12_path)
-        id_text = extract_text_from_file(id_path)
+        
+        # Extract texts using EasyOCR
+        m10_text = extract_text_easyocr(m10_path)
+        m12_text = extract_text_easyocr(m12_path)
+        id_text = extract_text_easyocr(id_path)
 
         # Remove temp files
         for p in [m10_path, m12_path, id_path]:
