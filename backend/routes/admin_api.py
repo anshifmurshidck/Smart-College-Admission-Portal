@@ -307,7 +307,7 @@ def handle_student(current_user, student_id):
     try:
         if request.method == 'GET':
             student = db.execute_read_one(
-                """SELECT s.*, d.name as department_name, d.code as department_code, a.address 
+                """SELECT s.*, d.name as department_name, d.code as department_code, a.address, a.ocr_status, a.ocr_details 
                    FROM students s
                    JOIN departments d ON s.department_id = d.id 
                    LEFT JOIN applications a ON s.application_id = a.id

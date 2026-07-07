@@ -51,7 +51,7 @@ def call_gemini(prompt, system_instruction=None, json_mode=False):
             generation_config["response_mime_type"] = "application/json"
             
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             system_instruction=system_instruction
         )
         response = model.generate_content(prompt, generation_config=generation_config)
@@ -68,14 +68,24 @@ def extract_intent_and_id(message, history_str, admin_id):
     system_prompt = (
         "You are a parser AI for the TMEC Student Database. "
         "Analyze the user message and previous message summaries to extract intent and entity IDs.\n\n"
+        "DATABASE SCHEMA:\n"
+        "- departments (id INT, name VARCHAR, code VARCHAR)\n"
+        "- applications (id VARCHAR, full_name VARCHAR, email VARCHAR, phone VARCHAR, address TEXT, dob DATE, gender VARCHAR, parent_name VARCHAR, department_id INT, aadhaar_number VARCHAR, state VARCHAR, tenth_percentage DECIMAL, twelfth_percentage DECIMAL, status VARCHAR, assigned_student_id VARCHAR, created_at TIMESTAMP)\n"
+        "- documents (id INT, application_id VARCHAR, document_type VARCHAR)\n\n"
         "Your output must be a clean JSON object containing:\n"
-        "1. 'intent': one of 'student_lookup', 'insights', or 'general'\n"
-        "2. 'target_id': the extracted Student ID (e.g. 'TMEC-2026-0042', 'ST101', '23001') or null if not mentioned\n"
-        "3. 'entity_type': 'student' or null\n\n"
+        "1. 'intent': one of 'student_lookup', 'sql_generation', 'greeting', 'unclear', or 'general'\n"
+        "2. 'target_id': the extracted Student ID, Name, Email, or Application ID (e.g. 'TMEC-2026-0042', 'Anusha', 'John') or null if not mentioned\n"
+        "3. 'entity_type': 'student' or null\n"
+        "4. 'sql_query': if intent is 'sql_generation', provide a valid read-only MySQL/SQLite query to answer the user's question based on the schema. Otherwise, null.\n\n"
+        "INTENT RULES:\n"
+        "- For specific student lookups ('Show student John', 'Find STU-2026-1234'), use 'student_lookup'.\n"
+        "- For ANY analytics, statistics, reports, counts, or dynamic queries ('How many AI/ML students?', 'Duplicate emails?', 'Admissions today?'), use 'sql_generation'.\n"
+        "- For 'sql_generation', ensure the SQL is optimized and uses the correct columns (e.g. status='Approved', department_id joins, COUNT(*), etc).\n\n"
         "Examples:\n"
-        "- 'Show student TMEC-2026-0021' -> {'intent': 'student_lookup', 'target_id': 'TMEC-2026-0021', 'entity_type': 'student'}\n"
-        "- 'How many students in CSE?' -> {'intent': 'insights', 'target_id': null, 'entity_type': null}\n"
-        "- 'Show details of ST1023' -> {'intent': 'student_lookup', 'target_id': 'ST1023', 'entity_type': 'student'}\n"
+        "- 'Show student TMEC-2026-0021' -> {\"intent\": \"student_lookup\", \"target_id\": \"TMEC-2026-0021\", \"entity_type\": \"student\", \"sql_query\": null}\n"
+        "- 'How many students in CSE?' -> {\"intent\": \"sql_generation\", \"target_id\": null, \"entity_type\": null, \"sql_query\": \"SELECT COUNT(*) FROM applications a JOIN departments d ON a.department_id = d.id WHERE d.code = 'CSE' AND a.status = 'Approved'\"}\n"
+        "- 'Hello' -> {\"intent\": \"greeting\", \"target_id\": null, \"entity_type\": null, \"sql_query\": null}\n"
+        "If the user input makes absolutely no sense or is too vague, use 'unclear'.\n"
         "Return ONLY valid JSON. Do not include markdown code block syntax around the JSON."
     )
     
@@ -131,15 +141,21 @@ def run_regex_fallback(message, admin_id):
         return {"intent": "insights", "target_id": None, "entity_type": None}
         
     # 4. Check if message is a name or word (fallback to student search)
+    # Check for greetings
+    msg_lower = message.lower().strip()
+    greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'start', 'help', 'menu', 'welcome']
+    if any(msg_lower == g for g in greetings) or msg_lower.startswith('hi ') or msg_lower.startswith('hello '):
+        return {"intent": "greeting", "target_id": None, "entity_type": None}
+        
+    # Check for "show/find student X"
+    name_match = re.search(r'\b(?:show|find|search for)\s+(?:student\s+)?([a-zA-Z]+)\b', message, re.IGNORECASE)
+    if name_match:
+        return {"intent": "student_lookup", "target_id": name_match.group(1), "entity_type": "student"}
+
     clean_msg = message.strip()
     if len(clean_msg) > 2 and " " not in clean_msg:
         # Single word query like "vaasu" or "Rohan"
         return {"intent": "student_lookup", "target_id": clean_msg, "entity_type": "student"}
-        
-    # 5. Check cache for follow-ups
-    greetings = ['hi', 'hello', 'hey', 'start', 'help', 'menu', 'welcome']
-    if clean_msg.lower() in greetings:
-        return {"intent": "general", "target_id": None, "entity_type": None}
 
     cached = last_searched_id.get(admin_id)
     if cached:
@@ -152,9 +168,9 @@ def run_regex_fallback(message, admin_id):
     return {"intent": "general", "target_id": None, "entity_type": None}
 
 def find_student(target_id):
-    """Fuzzy searches for a student profile by Student ID, email, phone, or name in the database."""
+    """Fuzzy searches for student profiles by Student ID, email, phone, or name in the database. Returns a list of matches."""
     if not target_id:
-        return None
+        return []
     cleaned = target_id.strip()
     
     # 1. Match by Student ID or Application ID
@@ -166,7 +182,7 @@ def find_student(target_id):
         (cleaned, cleaned)
     )
     if student:
-        return student
+        return [student]
     
     # 2. Match by Email
     if "@" in cleaned:
@@ -178,7 +194,7 @@ def find_student(target_id):
             (cleaned,)
         )
         if student:
-            return student
+            return [student]
 
     # 3. Match by Phone Number
     digits = "".join(filter(str.isdigit, cleaned))
@@ -191,18 +207,18 @@ def find_student(target_id):
             (f"%{digits}%",)
         )
         if student:
-            return student
+            return [student]
 
-    # 4. Fuzzy Match by Name (or part of name)
-    student = db.execute_read_one(
+    # 4. Fuzzy Match by Name (or part of name) - RETURN ALL MATCHES
+    students = db.execute_read(
         """SELECT a.*, d.name as department_name, d.code as department_code 
            FROM applications a 
            JOIN departments d ON a.department_id = d.id 
            WHERE LOWER(a.full_name) LIKE LOWER(%s) AND a.status = 'Approved'""",
             (f"%{cleaned}%",)
     )
-    if student:
-        return student
+    if students and len(students) > 0:
+        return students
         
     # 5. Match without "TMEC-" or "APP-" prefix
     cleaned_alt = cleaned.lower().replace("tmec-", "").replace("app-", "")
@@ -214,9 +230,9 @@ def find_student(target_id):
         (f"%{cleaned_alt}%", f"%{cleaned_alt}%")
     )
     if student:
-        return student
+        return [student]
             
-    return None
+    return []
 
 def get_student_details_context(student):
     """Compiles all database records associated with a student/application into a JSON context dictionary."""
@@ -357,6 +373,20 @@ def admin_chat(current_user):
         db_context = None
         ui_metadata = None
         
+        if intent == "greeting":
+            return jsonify({
+                "reply": "Hello! Welcome to the Smart College Admission Portal. How can I help you today?",
+                "metadata": None,
+                "gemini_active": False
+            }), 200
+            
+        if intent == "unclear":
+            return jsonify({
+                "reply": "I didn't quite catch that. Here are some examples of what you can ask me:\n\n- Search by Student ID (e.g. Find ST12345)\n- Search by Application ID (e.g. Search application 20250015)\n- Search by Email (e.g. Search by email)\n- Search by Student Code\n- Search by Student Name (e.g. Show student Anusha)",
+                "metadata": None,
+                "gemini_active": False
+            }), 200
+        
         if intent == "department_list":
             dept_code = target_id
             students_list = db.execute_read(
@@ -373,8 +403,16 @@ def admin_chat(current_user):
             }
             
         elif target_id:
-            student = find_student(target_id)
-            if student:
+            students_found = find_student(target_id)
+            if not students_found:
+                return jsonify({
+                    "reply": "No matching student was found. Please verify the Student ID, Application ID, Email, Student Code, or Name.",
+                    "metadata": None,
+                    "gemini_active": False
+                }), 200
+                
+            if len(students_found) == 1:
+                student = students_found[0]
                 last_searched_id[admin_id] = {"id": student["assigned_student_id"]}
                 db_context = get_student_details_context(student)
                 
@@ -393,10 +431,31 @@ def admin_chat(current_user):
                 }
             else:
                 db_context = {
-                    "context_type": "record_not_found",
+                    "context_type": "multiple_students_found",
                     "searched_id": target_id,
-                    "message": f"Could not find any enrolled student matching the identifier: {target_id}"
+                    "students": students_found
                 }
+                
+        elif intent == "sql_generation":
+            sql_query = extraction.get("sql_query")
+            if sql_query and sql_query.strip().lower().startswith("select"):
+                try:
+                    # Execute read-only generated SQL
+                    query_results = db.execute_read(sql_query)
+                    db_context = {
+                        "context_type": "sql_results",
+                        "sql_query": sql_query,
+                        "query_results": query_results
+                    }
+                except Exception as e:
+                    print(f"[SQL GENERATION ERROR] {e}")
+                    db_context = {
+                        "context_type": "sql_error",
+                        "error": str(e)
+                    }
+            else:
+                # Fallback if no valid SQL generated
+                db_context = get_student_insights_context()
                 
         elif intent == "insights":
             db_context = get_student_insights_context()
@@ -410,14 +469,17 @@ def admin_chat(current_user):
             "You help administrators query enrolled student profiles, academic percentages, and statistics.\n\n"
             "Format your reply using professional natural language and clean markdown. "
             "Use bullet points, tables, bold text, or highlights where suitable.\n"
+            "If the context type is 'sql_results', format the data beautifully into tables, lists, or summary statistics. Act like ChatGPT. Answer the user's specific question precisely.\n"
             "Always keep responses concise, accurate, and secure. Do not disclose internal system queries or security key details."
         )
         
         prompt = (
-            f"Database JSON Context:\n{json.dumps(db_context, indent=2)}\n\n"
+            f"Database JSON Context:\n{json.dumps(db_context, indent=2, default=str)}\n\n"
             f"User's Question: \"{message}\"\n\n"
             "Formulate your response using the provided database context. "
-            "If the context shows the requested record was not found, politely let the user know and prompt for a valid student ID."
+            "If the context shows multiple students were found for a name search, list them clearly with their Name, Student ID, Application ID, Department, and Admission Status so the user can choose which one they meant.\n"
+            "If the context shows the requested record was not found, politely let the user know and prompt for a valid student ID.\n"
+            "If the context is 'sql_error', politely say that you couldn't compute that specific statistic right now."
         )
         
         gemini_res = call_gemini(prompt, system_instruction=system_instruction)
@@ -477,6 +539,11 @@ def admin_chat(current_user):
                         f"| **10th Score** | {stud_info.get('tenth_percentage') or 'N/A'}% |\n"
                         f"| **12th Score** | {stud_info.get('twelfth_percentage') or 'N/A'}% |\n"
                     )
+            elif db_context and db_context.get("context_type") == "multiple_students_found":
+                students = db_context["students"]
+                reply_text += f"I found multiple students matching **{db_context['searched_id']}**. Please specify which one you meant:\n\n"
+                for s in students:
+                    reply_text += f"- **{s['full_name']}** (ID: `{s['assigned_student_id']}`, App: `{s['id']}`, Dept: {s['department_code']}, Status: {s['status']})\n"
             elif db_context and db_context.get("context_type") == "department_students_list":
                 students = db_context["students"]
                 dept_code = db_context["department_code"]
@@ -520,6 +587,27 @@ def admin_chat(current_user):
                 reply_text += "| :--- | :--- | :--- |\n"
                 for d in depts:
                     reply_text += f"| {d['name']} | `{d['code']}` | {d['head_of_department'] or 'N/A'} |\n"
+            elif db_context and db_context.get("context_type") == "sql_results":
+                results = db_context["query_results"]
+                reply_text += f"**Dynamic Query Executed:** `{db_context['sql_query']}`\n\n"
+                if not results:
+                    reply_text += "No records found matching your criteria."
+                else:
+                    if len(results) == 1 and len(results[0]) == 1:
+                        # Single value
+                        val = list(results[0].values())[0]
+                        reply_text += f"**Result:** {val}"
+                    else:
+                        headers = list(results[0].keys())
+                        reply_text += "| " + " | ".join([str(h).replace("_", " ").title() for h in headers]) + " |\n"
+                        reply_text += "| " + " | ".join([":---"] * len(headers)) + " |\n"
+                        for row in results[:50]:
+                            row_vals = [str(row[h]) for h in headers]
+                            reply_text += "| " + " | ".join(row_vals) + " |\n"
+                        if len(results) > 50:
+                            reply_text += "\n*(Showing first 50 rows)*\n"
+            elif db_context and db_context.get("context_type") == "sql_error":
+                reply_text += f"I attempted to compute that but encountered a database error: `{db_context['error']}`"
             else:
                 reply_text += f"No matching student records found. Try searching with a specific Student ID."
                 
