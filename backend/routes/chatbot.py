@@ -2,7 +2,8 @@ import os
 import re
 import json
 from flask import Blueprint, request, jsonify
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from backend.db import db
 from backend.middlewares.auth import token_required
 
@@ -43,22 +44,30 @@ def call_gemini(prompt, system_instruction=None, json_mode=False):
         return {
             "error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file."
         }
+    api_key = api_key.strip()
     
     try:
-        genai.configure(api_key=api_key)
-        generation_config = {}
+        client = genai.Client(api_key=api_key)
+        config_kwargs = {}
         if json_mode:
-            generation_config["response_mime_type"] = "application/json"
+            config_kwargs["response_mime_type"] = "application/json"
+        if system_instruction:
+            config_kwargs["system_instruction"] = system_instruction
             
-        model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
-            system_instruction=system_instruction
+        config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=config
         )
-        response = model.generate_content(prompt, generation_config=generation_config)
         return {"text": response.text}
     except Exception as e:
         print(f"[GEMINI ERROR]: {e}")
-        return {"error": f"Error calling Gemini API: {str(e)}"}
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            return {"error": "Google Gemini API rate limit or quota exceeded. Please try again in a few seconds."}
+        return {"error": "Gemini API unavailable or misconfigured."}
 
 def extract_intent_and_id(message, history_str, admin_id):
     """
@@ -95,14 +104,19 @@ def extract_intent_and_id(message, history_str, admin_id):
     
     if "error" in res:
         print("[CHAT BOT] Gemini extractor unavailable, running regex fallback.")
-        return run_regex_fallback(message, admin_id)
+        fallback = run_regex_fallback(message, admin_id)
+        fallback["gemini_used"] = False
+        return fallback
     
     try:
         data = json.loads(res["text"].strip())
+        data["gemini_used"] = True
         return data
     except Exception as e:
         print(f"[CHAT BOT] Failed parsing JSON from Gemini: {e}. Running regex fallback.")
-        return run_regex_fallback(message, admin_id)
+        fallback = run_regex_fallback(message, admin_id)
+        fallback["gemini_used"] = False
+        return fallback
 
 def run_regex_fallback(message, admin_id):
     """
@@ -372,19 +386,20 @@ def admin_chat(current_user):
         # 4. Fetch Database Context based on Resolved Intent
         db_context = None
         ui_metadata = None
+        is_gemini = extraction.get("gemini_used", False)
         
         if intent == "greeting":
             return jsonify({
                 "reply": "Hello! Welcome to the Smart College Admission Portal. How can I help you today?",
                 "metadata": None,
-                "gemini_active": False
+                "gemini_active": is_gemini
             }), 200
             
         if intent == "unclear":
             return jsonify({
                 "reply": "I didn't quite catch that. Here are some examples of what you can ask me:\n\n- Search by Student ID (e.g. Find ST12345)\n- Search by Application ID (e.g. Search application 20250015)\n- Search by Email (e.g. Search by email)\n- Search by Student Code\n- Search by Student Name (e.g. Show student Anusha)",
                 "metadata": None,
-                "gemini_active": False
+                "gemini_active": is_gemini
             }), 200
         
         if intent == "department_list":
@@ -408,7 +423,7 @@ def admin_chat(current_user):
                 return jsonify({
                     "reply": "No matching student was found. Please verify the Student ID, Application ID, Email, Student Code, or Name.",
                     "metadata": None,
-                    "gemini_active": False
+                    "gemini_active": is_gemini
                 }), 200
                 
             if len(students_found) == 1:
@@ -486,7 +501,7 @@ def admin_chat(current_user):
         
         if "error" in gemini_res:
             reply_text = (
-                f"### System Message (Gemini API Configuration Required)\n\n"
+                f"### System Message ({gemini_res.get('error', 'Gemini API Error')})\n\n"
                 f"I resolved your query to intent `{intent}` and searched the database.\n\n"
                 f"**Database Result Summary:**\n"
             )
@@ -614,7 +629,7 @@ def admin_chat(current_user):
             return jsonify({
                 "reply": reply_text,
                 "metadata": ui_metadata,
-                "gemini_active": False
+                "gemini_active": is_gemini
             }), 200
             
         return jsonify({
