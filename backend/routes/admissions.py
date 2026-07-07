@@ -6,7 +6,6 @@ import requests
 import pytesseract
 import pypdf
 from PIL import Image
-import easyocr
 import fitz
 import numpy as np
 from io import BytesIO
@@ -14,10 +13,10 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from backend.db import db
 from backend.config import Config
-
+from backend.ocr_utils import extract_text
 
 admissions_bp = Blueprint('admissions', __name__)
-reader = easyocr.Reader(['en'], gpu=False)
+
 
 import shutil
 # Dynamic Windows Tesseract executable auto-discovery
@@ -55,75 +54,7 @@ def try_read_as_text(file_path):
         print(f"[OCR FALLBACK] error reading as text: {e}")
     return ""
 
-def extract_text_from_pdf(file_path):
-    text = ""
-    try:
-        reader_pdf = pypdf.PdfReader(file_path)
-        for page in reader_pdf.pages:
-            text += page.extract_text() or ""
-        
-        # Fallback if no text extracted (scanned PDF)
-        if not text.strip():
-            print("[OCR] Scanned PDF detected. Attempting page image extraction & OCR...")
-            from io import BytesIO
-            for page_idx, page in enumerate(reader_pdf.pages):
-                for img_idx, img_info in enumerate(page.images):
-                    try:
-                        img_bytes = img_info.data
-                        
-                        # Use EasyOCR instead of pytesseract
-                        import numpy as np
-                        import cv2
-                        nparr = np.frombuffer(img_bytes, np.uint8)
-                        img_cv2 = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                        
-                        if img_cv2 is not None:
-                            ocr_result = reader.readtext(img_cv2)
-                            page_text = " ".join([res[1] for res in ocr_result])
-                            if page_text:
-                                text += page_text + "\n"
-                    except Exception as img_err:
-                        print(f"[OCR] Failed to extract page {page_idx} image {img_idx}: {img_err}")
-    except Exception as e:
-        print(f"[OCR] Error reading PDF: {e}")
-    return text
 
-def extract_text_from_image(file_path):
-    try:
-        result = reader.readtext(file_path)
-        text = " ".join([res[1] for res in result])
-        return text
-    except Exception as e:
-        print(f"[OCR] EasyOCR unavailable: {e}")
-        return ""
-
-def extract_text_from_file(file_path):
-    text_content = try_read_as_text(file_path)
-    if text_content:
-        return text_content
-        
-    ext = file_path.rsplit('.', 1)[1].lower() if '.' in file_path else ''
-    if ext == 'pdf':
-        return extract_text_from_pdf(file_path)
-    else:
-        return extract_text_from_image(file_path)
-
-def extract_text_easyocr(file_path):
-    text_content = try_read_as_text(file_path)
-    if text_content:
-        return text_content
-        
-    ext = file_path.rsplit('.', 1)[1].lower() if '.' in file_path else ''
-    if ext == 'pdf':
-        return extract_text_from_pdf(file_path)
-    
-    try:
-        result = reader.readtext(file_path)
-        text = " ".join([res[1] for res in result])
-        return text
-    except Exception as e:
-        print(f"[EasyOCR] Error: {e}")
-        return ""
 def verify_percentage_in_text(text, target_pct):
     if not target_pct:
         return True
@@ -253,10 +184,24 @@ def verify_ocr():
         id_proof.save(id_path)
 
         
-        # Extract texts using EasyOCR
-        m10_text = extract_text_easyocr(m10_path)
-        m12_text = extract_text_easyocr(m12_path)
-        id_text = extract_text_easyocr(id_path)
+        # Extract texts using OCR
+        m10_text = extract_text(m10_path)
+        m12_text = extract_text(m12_path)
+        id_text = extract_text(id_path)
+        print("===== FORM VALUES =====")
+        print("Name:", full_name)
+        print("Aadhaar:", aadhaar_number)
+        print("10th %:", tenth_percentage)
+        print("10th Total:", tenth_total_marks)
+        print("10th Max:", tenth_max_marks)
+        print("12th %:", twelfth_percentage)
+        print("12th Total:", twelfth_total_marks)
+        print("12th Max:", twelfth_max_marks)
+
+        print("\n===== OCR TEXT =====")
+        print("ID Proof:\n", id_text)
+        print("\n10th Marksheet:\n", m10_text)
+        print("\n12th Marksheet:\n", m12_text)
 
         # Remove temp files
         for p in [m10_path, m12_path, id_path]:
@@ -302,9 +247,14 @@ def verify_ocr():
                 details['twelfth_matched'] = True
         else:
             # 1. ID Proof checks
-            details['name_matched'] = verify_name_in_text(id_text, full_name)
-            details['aadhaar_matched'] = verify_aadhaar_in_text(id_text, aadhaar_number)
+            name_match = verify_name_in_text(id_text, full_name)
+            aadhaar_match = verify_aadhaar_in_text(id_text, aadhaar_number)
 
+            print("Name Match:", name_match)
+            print("Aadhaar Match:", aadhaar_match)
+
+            details['name_matched'] = name_match
+            details['aadhaar_matched'] = aadhaar_match
             # 2. 10th Marksheet checks
             tenth_pct_match = verify_percentage_in_text(m10_text, tenth_percentage)
             tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks)
@@ -320,6 +270,10 @@ def verify_ocr():
         message = "OCR verification successful. All documents matched." if verified else "OCR verification flagged. Mismatch in documents."
         if use_simulation and not verified:
             message = "OCR verification simulation flagged mismatch based on file names."
+
+        print("===== FINAL DETAILS =====")
+        print(details)
+        print("Verified:", verified)
 
         return jsonify({
             'success': True,

@@ -1,32 +1,107 @@
-import easyocr
+import os
+import cv2
 import fitz  # PyMuPDF
 import numpy as np
+import pytesseract
 
-# Initialize OCR Reader once
-reader = easyocr.Reader(['en'], gpu=False)
+# Tell Python where Tesseract is installed
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
-def extract_text_from_pdf(file_bytes):
+def preprocess_image(image):
+    """
+    Preprocess image for better OCR accuracy.
+    """
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    gray = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )[1]
+
+    return gray
+
+
+def extract_text_from_image(file_path):
+    """
+    Extract text from JPG, JPEG and PNG images.
+    """
+    try:
+        img = cv2.imread(file_path)
+
+        if img is None:
+            return ""
+
+        processed = preprocess_image(img)
+
+        return pytesseract.image_to_string(processed)
+
+    except Exception as e:
+        print("Image OCR Error:", e)
+        return ""
+
+
+def extract_text_from_pdf(file_path):
+    """
+    Extract text from PDF.
+    If the PDF already contains text, return it.
+    Otherwise perform OCR.
+    """
     try:
         text = ""
 
-        pdf = fitz.open(stream=file_bytes, filetype="pdf")
+        pdf = fitz.open(file_path)
 
         for page in pdf:
-            pix = page.get_pixmap()
-            img = np.frombuffer(pix.samples, dtype=np.uint8)
-            img = img.reshape(pix.height, pix.width, pix.n)
 
-            result = reader.readtext(img, detail=0)
+            page_text = page.get_text()
 
-            page_text = " ".join(result)
-            text += page_text + " "
+            if page_text.strip():
+                text += page_text
+                continue
 
-        if not text.strip():
-            return None
+            pix = page.get_pixmap(dpi=300)
 
-        return text.strip()
+            img = np.frombuffer(
+                pix.samples,
+                dtype=np.uint8
+            ).reshape(
+                pix.height,
+                pix.width,
+                pix.n
+            )
+
+            if pix.n == 4:
+                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+
+            processed = preprocess_image(img)
+
+            text += pytesseract.image_to_string(processed)
+            text += "\n"
+
+        pdf.close()
+
+        return text
 
     except Exception as e:
-        print("OCR Extraction Error:", e)
-        return None
+        print("PDF OCR Error:", e)
+        return ""
+
+
+def extract_text(file_path):
+    """
+    Automatically choose OCR based on file extension.
+    """
+
+    extension = os.path.splitext(file_path)[1].lower()
+
+    if extension == ".pdf":
+        return extract_text_from_pdf(file_path)
+
+    if extension in [".png", ".jpg", ".jpeg"]:
+        return extract_text_from_image(file_path)
+
+    return ""

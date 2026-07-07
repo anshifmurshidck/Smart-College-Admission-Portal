@@ -1,5 +1,7 @@
+import os
+import tempfile
 from flask import Blueprint, request, jsonify
-from backend.ocr_utils import extract_text_from_pdf
+from backend.ocr_utils import extract_text
 from backend.verification import verify_marks
 
 ocr_bp = Blueprint("ocr", __name__)
@@ -12,11 +14,16 @@ def verify_document():
 
     file = request.files["marksheet"]
 
-    file_bytes = file.read()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp:
+        file.save(temp.name)
+        file_path = temp.name
 
-    extracted_text = extract_text_from_pdf(file_bytes)
+    try:
+        extracted_text = extract_text(file_path)
+    finally:
+        os.remove(file_path)
 
-    if extracted_text is None:
+    if not extracted_text:
         return jsonify({"error": "OCR failed"}), 400
 
     form_marks = {
