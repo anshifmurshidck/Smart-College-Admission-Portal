@@ -7,16 +7,72 @@
     <link rel="icon" type="image/png" href="/logo_sphere.png" />
     <meta name="description" content="Apply for admission to Thought Minds Engineering College. Upload documents, track application status, and receive your Student ID automatically upon approval." />
     <meta name="theme-color" content="#030712" />
-    <!-- Prevent flash of white before CSS loads -->
+    <!-- IMMEDIATE LOADING SCREEN - NO DELAY -->
     <style>
-      html, body { background: #030712; margin: 0; }
-      #root { min-height: 100vh; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { 
+        width: 100%;
+        height: 100%;
+        background: #030712; 
+        overflow: hidden;
+      }
+      
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #030712;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+      }
+      
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 5px solid rgba(59, 130, 246, 0.15);
+        border-top: 5px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      #root { 
+        width: 100%;
+        min-height: 100vh;
+      }
     </style>
   </head>
 
   <body>
+    <!-- LOADING SCREEN - SHOWN IMMEDIATELY -->
+    <div id="loading-screen">
+      <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- REACT ROOT -->
     <div id="root"></div>
-    <!-- Vite React Entry -->
+    
+    <!-- VITE ENTRY POINT -->
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- FALLBACK FOR NO JAVASCRIPT -->
+    <noscript>
+      <style>
+        #loading-screen { display: none; }
+        body { color: #f1f5f9; font-family: 'Inter', sans-serif; }
+      </style>
+      <div style="text-align: center; padding: 40px;">
+        <h1>JavaScript Required</h1>
+        <p>Please enable JavaScript to use this application.</p>
+      </div>
+    </noscript>
   </body>
 </html>
