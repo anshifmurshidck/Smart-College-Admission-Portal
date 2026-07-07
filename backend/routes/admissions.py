@@ -58,22 +58,30 @@ def try_read_as_text(file_path):
 def extract_text_from_pdf(file_path):
     text = ""
     try:
-        reader = pypdf.PdfReader(file_path)
-        for page in reader.pages:
+        reader_pdf = pypdf.PdfReader(file_path)
+        for page in reader_pdf.pages:
             text += page.extract_text() or ""
         
         # Fallback if no text extracted (scanned PDF)
         if not text.strip():
             print("[OCR] Scanned PDF detected. Attempting page image extraction & OCR...")
             from io import BytesIO
-            for page_idx, page in enumerate(reader.pages):
+            for page_idx, page in enumerate(reader_pdf.pages):
                 for img_idx, img_info in enumerate(page.images):
                     try:
                         img_bytes = img_info.data
-                        img = Image.open(BytesIO(img_bytes))
-                        page_text = pytesseract.image_to_string(img)
-                        if page_text:
-                            text += page_text + "\n"
+                        
+                        # Use EasyOCR instead of pytesseract
+                        import numpy as np
+                        import cv2
+                        nparr = np.frombuffer(img_bytes, np.uint8)
+                        img_cv2 = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                        
+                        if img_cv2 is not None:
+                            ocr_result = reader.readtext(img_cv2)
+                            page_text = " ".join([res[1] for res in ocr_result])
+                            if page_text:
+                                text += page_text + "\n"
                     except Exception as img_err:
                         print(f"[OCR] Failed to extract page {page_idx} image {img_idx}: {img_err}")
     except Exception as e:
@@ -82,11 +90,11 @@ def extract_text_from_pdf(file_path):
 
 def extract_text_from_image(file_path):
     try:
-        img = Image.open(file_path)
-        text = pytesseract.image_to_string(img)
+        result = reader.readtext(file_path)
+        text = " ".join([res[1] for res in result])
         return text
     except Exception as e:
-        print(f"[OCR] Tesseract OCR unavailable: {e}")
+        print(f"[OCR] EasyOCR unavailable: {e}")
         return ""
 
 def extract_text_from_file(file_path):

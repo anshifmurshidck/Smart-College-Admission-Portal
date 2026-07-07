@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"python run.py\" \"vite\"",
+    "dev": "concurrently \"python run.py\" \"vite\",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
