@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Outlet, Navigate } from 'react-router-dom';
-import AdminChatbot from '../components/AdminChatbot';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -269,9 +268,6 @@ export default function AdminLayout() {
         <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
           <Outlet />
         </main>
-
-        {/* Global Admin Chatbot */}
-        <AdminChatbot />
       </div>
 
     </div>
