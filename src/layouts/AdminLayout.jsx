@@ -12,6 +12,7 @@ import {
   X, 
   UserCircle 
 } from 'lucide-react';
+import AdminChatbot from '../components/AdminChatbot';
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -269,7 +270,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
-
+      <AdminChatbot />
     </div>
   );
 }
