@@ -2,8 +2,7 @@ import os
 import re
 import json
 from flask import Blueprint, request, jsonify
-from google import genai
-from google.genai import types
+import requests
 from backend.db import db
 from backend.middlewares.auth import token_required
 
@@ -35,34 +34,31 @@ def get_document_url(file_path):
     return f"http://localhost:{server_port}/{file_path}"
 
 def call_gemini(prompt, system_instruction=None, json_mode=False):
-    """
-    Calls the Google Gemini API using the official client library.
-    Handles missing API keys gracefully to avoid crashing the server.
-    """
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    print(f"API KEY IS: '{api_key}'", flush=True)
     if not api_key:
-        return {
-            "error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file."
-        }
-    api_key = api_key.strip()
+        return {"error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file."}
     
     try:
-        client = genai.Client(api_key=api_key)
-        config_kwargs = {}
-        if json_mode:
-            config_kwargs["response_mime_type"] = "application/json"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.0}
+        }
         if system_instruction:
-            config_kwargs["system_instruction"] = system_instruction
-            
-        config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+            payload["system_instruction"] = {"parts": [{"text": system_instruction}]}
+        if json_mode:
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+        res = requests.post(url, json=payload)
         
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=config
-        )
-        return {"text": response.text}
+        if res.status_code == 200:
+            data = res.json()
+            return {"text": data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")}
+        else:
+            raise Exception(f"{res.status_code} - {res.text}")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[GEMINI ERROR]: {e}")
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():

@@ -12,6 +12,7 @@ import {
   X, 
   UserCircle 
 } from 'lucide-react';
+import AdminChatbot from '../components/AdminChatbot';
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -42,7 +43,7 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-primary)' }}>
       
       {/* Sidebar - Desktop */}
       <aside 
@@ -270,6 +271,7 @@ export default function AdminLayout() {
         </main>
       </div>
 
+      <AdminChatbot />
     </div>
   );
 }
