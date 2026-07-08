@@ -9,12 +9,26 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 
 
 def preprocess_image(image):
-    """
-    Preprocess image for better OCR accuracy.
-    """
 
+    # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
+    # Enlarge small images
+    h, w = gray.shape
+    if w < 1800:
+        scale = 1800 / w
+        gray = cv2.resize(
+            gray,
+            None,
+            fx=scale,
+            fy=scale,
+            interpolation=cv2.INTER_CUBIC
+        )
+
+    # Reduce noise
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+
+    # Convert to black & white
     gray = cv2.threshold(
         gray,
         0,
@@ -23,7 +37,6 @@ def preprocess_image(image):
     )[1]
 
     return gray
-
 
 def extract_text_from_image(file_path):
     """
@@ -37,7 +50,10 @@ def extract_text_from_image(file_path):
 
         processed = preprocess_image(img)
 
-        return pytesseract.image_to_string(processed)
+        return pytesseract.image_to_string(
+            processed,
+            config="--oem 3 --psm 11"
+        )
 
     except Exception as e:
         print("Image OCR Error:", e)
