@@ -8,6 +8,7 @@ import pypdf
 from PIL import Image
 import fitz
 import numpy as np
+from difflib import SequenceMatcher
 from io import BytesIO
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
@@ -55,76 +56,140 @@ def try_read_as_text(file_path):
     return ""
 
 
-def verify_percentage_in_text(text, target_pct):
-    if not target_pct:
-        return True
+def _parse_float(value):
+    if value is None or str(value).strip() == "":
+        return None
     try:
-        target_val = float(target_pct)
-    except:
-        return True
-        
-    numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
-    for num_str in numbers:
-        try:
-            val = float(num_str)
-            if abs(val - target_val) <= 1.0:
-                return True
-        except:
-            continue
-            
-    target_str = f"{target_val:.1f}"
-    target_str_alt = f"{int(round(target_val))}"
-    if target_str in text or target_str_alt in text:
-        return True
-        
-    return False
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
-def verify_marks_in_text(text, total_marks, max_marks):
-    if not total_marks or not max_marks:
-        return True
-    try:
-        tot_val = float(total_marks)
-        max_val = float(max_marks)
-    except:
-        return True
-        
-    tot_str = f"{int(tot_val)}"
-    max_str = f"{int(max_val)}"
-    
-    if tot_str in text and max_str in text:
-        return True
-        
-    numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
-    tot_found = False
-    max_found = False
-    for num_str in numbers:
+
+def _normalize_ocr_numbers(text):
+    """Fix common Tesseract mistakes before numeric matching."""
+    if not text:
+        return ""
+    return (
+        text.replace("O", "0")
+            .replace("o", "0")
+            .replace("I", "1")
+            .replace("l", "1")
+            .replace(",", "")
+    )
+
+
+def _extract_numbers(text):
+    normalized = _normalize_ocr_numbers(text)
+    values = []
+    for num_str in re.findall(r'\d+(?:\.\d+)?', normalized):
         try:
-            val = float(num_str)
-            if abs(val - tot_val) < 0.1:
-                tot_found = True
-            if abs(val - max_val) < 0.1:
-                max_found = True
-        except:
+            values.append(float(num_str))
+        except ValueError:
             continue
-            
-    return tot_found and max_found
+    return values
+
+
+def _has_number_near(numbers, target, tolerance=0.5):
+    if target is None:
+        return True
+    return any(abs(value - target) <= tolerance for value in numbers)
+
+
+def _mark_contexts(text, maximum):
+    normalized = _normalize_ocr_numbers(text)
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    contexts = []
+    keywords = (
+        'total', 'grand', 'aggregate', 'obtained', 'maximum', 'max',
+        'marks secured', 'marks obtained', 'overall'
+    )
+
+    for index, line in enumerate(lines):
+        lower_line = line.lower()
+        line_numbers = _extract_numbers(line)
+        has_keyword = any(keyword in lower_line for keyword in keywords)
+        has_max = maximum is not None and _has_number_near(line_numbers, maximum)
+
+        if not has_keyword and not has_max:
+            continue
+
+        window = lines[index: index + 2]
+        context_text = ' '.join(window)
+        context_numbers = _extract_numbers(context_text)
+        if context_numbers:
+            contexts.append((context_text, context_numbers))
+
+    return contexts
+
+
+def verify_percentage_in_text(text, target_pct):
+    target_val = _parse_float(target_pct)
+    if target_val is None:
+        return True
+
+    numbers = _extract_numbers(text)
+    # OCR often drops/rounds decimal percentages, so allow a small tolerance.
+    return _has_number_near(numbers, target_val, tolerance=1.0)
+
+
+def verify_marks_in_text(text, total_marks, max_marks, target_pct=None):
+    total = _parse_float(total_marks)
+    maximum = _parse_float(max_marks)
+    if total is None or maximum is None:
+        return True
+
+    all_numbers = _extract_numbers(text)
+    contexts = _mark_contexts(text, maximum)
+
+    print("Numbers found:", all_numbers)
+    print("Looking for:", total, maximum)
+    print("Mark contexts:", contexts)
+
+    if contexts:
+        for context_text, context_numbers in contexts:
+            context_total_found = _has_number_near(context_numbers, total)
+            context_max_found = _has_number_near(context_numbers, maximum)
+
+            print("Context:", context_text)
+            print("Context Total Found:", context_total_found)
+            print("Context Max Found:", context_max_found)
+
+            if context_max_found:
+                return context_total_found
+
+        # Aggregate words were found, but max marks were not read clearly. In
+        # that case the entered total must still appear in the aggregate context.
+        return any(_has_number_near(context_numbers, total) for _, context_numbers in contexts)
+
+    # No aggregate context was detected. Be strict: avoid passing just because
+    # the typed value appears somewhere unrelated, such as a register number.
+    print("No aggregate marks context found; marks verification failed.")
+    return False
+def normalize_name(name):
+    return re.sub(r'[^a-z]', '', name.lower())
 
 def verify_name_in_text(text, full_name):
     if not full_name:
         return True
-    text_lower = text.lower()
-    words = [w.strip() for w in full_name.lower().split() if len(w.strip()) > 2]
-    if not words:
-        return full_name.lower() in text_lower
-        
-    matches = sum(1 for w in words if w in text_lower)
-    return (matches / len(words)) >= 0.7
+
+    ocr_text = normalize_name(text)
+    form_name = normalize_name(full_name)
+
+    print("OCR Text:", ocr_text)
+    print("Form Name:", form_name)
+
+    return form_name in ocr_text
 
 def verify_aadhaar_in_text(text, aadhaar):
     if not aadhaar:
         return True
+    
     aadhaar_clean = re.sub(r'\D', '', str(aadhaar))
     text_clean = re.sub(r'\D', '', text)
+
+    print("OCR Digits:", text_clean)
+    print("Entered Aadhaar:", aadhaar_clean)
+
     return aadhaar_clean in text_clean
 
 
@@ -145,6 +210,7 @@ def generate_application_id():
 
 @admissions_bp.route('/verify-ocr', methods=['POST'])
 def verify_ocr():
+    print(">>>>>>>> verify_ocr called <<<<<<<<")
     try:
         # Retrieve form data
         full_name = request.form.get('fullName', '')
@@ -257,13 +323,21 @@ def verify_ocr():
             details['aadhaar_matched'] = aadhaar_match
             # 2. 10th Marksheet checks
             tenth_pct_match = verify_percentage_in_text(m10_text, tenth_percentage)
-            tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks)
-            details['tenth_matched'] = tenth_pct_match and tenth_marks_match
+            tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks, tenth_percentage)
+
+            print("10th Percentage Match:", tenth_pct_match)
+            print("10th Marks Match:", tenth_marks_match)
+
+            details['tenth_matched'] = tenth_marks_match
 
             # 3. 12th Marksheet checks
             twelfth_pct_match = verify_percentage_in_text(m12_text, twelfth_percentage)
-            twelfth_marks_match = verify_marks_in_text(m12_text, twelfth_total_marks, twelfth_max_marks)
-            details['twelfth_matched'] = twelfth_pct_match and twelfth_marks_match
+            twelfth_marks_match = verify_marks_in_text(m12_text, twelfth_total_marks, twelfth_max_marks, twelfth_percentage)
+
+            print("12th Percentage Match:", twelfth_pct_match)
+            print("12th Marks Match:", twelfth_marks_match)
+
+            details['twelfth_matched'] = twelfth_marks_match
 
         verified = all(details.values())
 
@@ -524,3 +598,5 @@ def track_status(app_id):
 
     except Exception as e:
         return jsonify({'message': 'Error tracking application', 'error': str(e)}), 500
+
+
