@@ -14,4 +14,4 @@ requests==2.31.0
 
 PyMuPDF
 google-generativeai
-gunicorn
+gunicorn==23.0.0
