@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [activityPage, setActivityPage] = useState(1);
   const ACTIVITY_PAGE_SIZE = 15;
 
-  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
   const loadDashboardData = async () => {
     setLoading(true);

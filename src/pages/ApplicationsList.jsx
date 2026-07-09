@@ -88,7 +88,7 @@ export default function ApplicationsList() {
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
 
-  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
   const SERVER_HOST = 'http://127.0.0.1:5000'; // For file serving
 
   const loadApplications = async () => {

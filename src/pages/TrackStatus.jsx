@@ -11,7 +11,7 @@ export default function TrackStatus() {
   const [errorMsg, setErrorMsg] = useState('');
   const [data, setData] = useState(null);
 
-  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
   useEffect(() => {
     // If ID is in query string, trigger track automatically

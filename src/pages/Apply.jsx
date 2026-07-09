@@ -105,7 +105,7 @@ export default function Apply() {
   const [ocrResult, setOcrResult] = useState(null);
   const [agreed, setAgreed] = useState(false);
 
-  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
   useEffect(() => {
     const fetchDepartments = async () => {

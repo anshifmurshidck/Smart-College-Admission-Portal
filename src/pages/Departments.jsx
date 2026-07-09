@@ -655,7 +655,7 @@ export default function Departments() {
   const [headingVisible, setHeadingVisible] = useState(false);
   const [cardsVisible, setCardsVisible] = useState(false);
 
-  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
   useEffect(() => {
     supabase.from('departments').select('*')
