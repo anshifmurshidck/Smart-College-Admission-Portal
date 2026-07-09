@@ -3,11 +3,14 @@ import random
 import datetime
 import re
 import requests
-import pytesseract
-import pypdf
-from PIL import Image
-import fitz
-import numpy as np
+try:
+    import pytesseract
+    import pypdf
+    from PIL import Image
+    import fitz
+    import numpy as np
+except ImportError:
+    pass
 from difflib import SequenceMatcher
 from io import BytesIO
 from flask import Blueprint, request, jsonify
