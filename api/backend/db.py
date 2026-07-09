@@ -37,7 +37,7 @@ class DatabaseManager:
 
     def _init_db(self):
         """Initializes the database schema if tables do not exist."""
-        schema_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database", "schema.sql")
+        schema_path = os.path.join(os.path.dirname(__file__), "database", "schema.sql")
         if not os.path.exists(schema_path):
             print(f"[DB MANAGER] Schema file not found at {schema_path}.")
             return
