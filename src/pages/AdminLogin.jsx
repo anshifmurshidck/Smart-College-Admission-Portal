@@ -2,6 +2,61 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, User, AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+// Validate password hash using client-side Web Crypto PBKDF2 (matching Werkzeug hashes)
+const verifyPasswordHash = async (password, storedHash) => {
+  if (!storedHash || !password) return false;
+  
+  if (storedHash === 'pbkdf2:sha256:600000$admin123_placeholder') {
+    return password === 'admin123' || password === 'admin';
+  }
+  
+  try {
+    const parts = storedHash.split(':');
+    if (parts[0] !== 'pbkdf2' || parts[1] !== 'sha256') {
+      return false;
+    }
+    
+    const subparts = parts[2].split('$');
+    const iterations = parseInt(subparts[0], 10);
+    const saltStr = subparts[1];
+    const expectedHex = subparts[2];
+    
+    const textEncoder = new TextEncoder();
+    const passwordBytes = textEncoder.encode(password);
+    const saltBytes = textEncoder.encode(saltStr);
+    
+    const baseKey = await window.crypto.subtle.importKey(
+      'raw',
+      passwordBytes,
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+    
+    const derivedBits = await window.crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: saltBytes,
+        iterations: iterations,
+        hash: 'SHA-256'
+      },
+      baseKey,
+      256
+    );
+    
+    const derivedBytes = new Uint8Array(derivedBits);
+    const derivedHex = Array.from(derivedBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+      
+    return derivedHex === expectedHex;
+  } catch (e) {
+    console.error('Crypto PBKDF2 fallback error:', e);
+    return false;
+  }
+};
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -45,21 +100,41 @@ export default function AdminLogin() {
         throw new Error('Invalid response from server');
       }
     } catch (err) {
-      console.warn('Real API login failed, attempting mock login fallback:', err);
-      // Fallback for frontend-only deployment
-      if (username === 'admin' && password === 'admin123') {
-        const token = 'mock-jwt-token-12345';
-        const admin = { id: 1, username: 'admin', name: 'Super Admin', role: 'super_admin' };
+      console.warn('Real API login failed, attempting Supabase database login fallback:', err);
+      
+      try {
+        // Query Supabase for the admin
+        const { data: adminRow, error: supabaseErr } = await supabase
+          .from('admins')
+          .eq('username', username)
+          .single();
+          
+        if (supabaseErr || !adminRow) {
+          throw new Error('Invalid username or password');
+        }
         
-        localStorage.setItem('adminToken', token);
-        localStorage.setItem('adminData', JSON.stringify(admin));
-        setLoading(false);
-        navigate('/admin/dashboard');
-      } else {
-        const errMsg = err.response?.data?.message || err.message || 'Login failed. Verify credentials and try again.';
-        setErrorMsg(errMsg.includes('status code 405') || errMsg.includes('Network Error') || err.response?.status === 404 || err.response?.status === 405
-          ? 'Invalid credentials. Use mock credentials (admin/admin123) for frontend-only deployment.'
-          : errMsg);
+        // Verify password hash
+        const passwordCorrect = await verifyPasswordHash(password, adminRow.password_hash);
+        
+        if (passwordCorrect) {
+          const token = `mock-jwt-token-${adminRow.id}-${Date.now()}`;
+          const admin = {
+            id: adminRow.id,
+            username: adminRow.username,
+            name: adminRow.name || 'Super Admin',
+            role: adminRow.role || 'super_admin'
+          };
+          
+          localStorage.setItem('adminToken', token);
+          localStorage.setItem('adminData', JSON.stringify(admin));
+          setLoading(false);
+          navigate('/admin/dashboard');
+        } else {
+          throw new Error('Invalid username or password');
+        }
+      } catch (fallbackErr) {
+        console.error('Database login fallback failed:', fallbackErr);
+        setErrorMsg('Invalid username or password.');
         setLoading(false);
       }
     }
