@@ -90,17 +90,26 @@ export default function AdminChatbot() {
         }
       ]);
     } catch (err) {
-      console.error(err);
-      const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Could not deliver message.';
-      const helpText = err.response?.status === 401 || err.response?.status === 403
-        ? 'Please sign in again to refresh your session.'
-        : 'Please ensure the backend is running and reachable.';
+      console.warn('Real AI Chatbot unreachable, switching to local assistant fallback:', err);
+      
+      // Simple local responder mock for offline/frontend-only mode
+      let reply = "I am currently running in **Local Helper Mode** because the backend Flask server is offline on this host.\n\nHere are some quick shortcuts and navigation tips:\n* **Dashboard**: Displays overall application stats and graphs.\n* **Applications**: Shows all pending and under-verification submissions (use filters to see OCR mismatch flags).\n* **Students**: Look up enrolled student profiles, academic marksheets, and assigned IDs.\n\nIf you want full Gemini AI chat capability, please start the Flask backend API.";
+      
+      const lower = userText.toLowerCase();
+      if (lower.includes('student') || lower.includes('profile') || lower.includes('lookup') || lower.includes('database')) {
+        reply = "To search or manage student records, navigate to the **Students** page from the sidebar. You can search by Name, Email, or Student ID, and inspect document matches.";
+      } else if (lower.includes('count') || lower.includes('total') || lower.includes('how many') || lower.includes('stats')) {
+        reply = "For real-time statistics (total approved/rejected, monthly registration trends, and department breakdowns), head over to the **Dashboard** page.";
+      } else if (lower.includes('status') || lower.includes('verify') || lower.includes('approve') || lower.includes('reject')) {
+        reply = "You can update an applicant's status to **Approved** or **Rejected** directly from the **Applications** database page by selecting an application and clicking the status dropdown.";
+      }
+
       setMessages(prev => [
         ...prev,
         {
-          id: `msg-${Date.now()}-err`,
+          id: `msg-${Date.now()}-bot`,
           sender: 'bot',
-          text: `⚠️ **System Error**: ${apiMessage} ${helpText}`,
+          text: reply,
           timestamp: new Date()
         }
       ]);

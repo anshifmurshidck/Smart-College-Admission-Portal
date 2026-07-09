@@ -51,8 +51,77 @@ export default function AdminDashboard() {
       setActivityPage(1);
       
     } catch (err) {
-      console.error(err);
-      setErrorMsg('Failed to load dashboard metrics. Try refreshing the page.');
+      console.warn('Backend API stats load failed, attempting Supabase direct fallback:', err);
+      
+      try {
+        const { data: apps, error } = await supabase
+          .from('applications')
+          .select('*, department:departments(code, name), status_history(comments, status)');
+          
+        if (error) throw error;
+        
+        const getOcrStatusForApp = (app) => {
+          const timeline = app.status_history || [];
+          const firstLog = timeline.find(log => log.comments && log.comments.includes('OCR Pre-verification Report'));
+          if (firstLog) {
+            const comment = firstLog.comments;
+            const name_matched = comment.includes('Name Match: SUCCESS');
+            const aadhaar_matched = comment.includes('Aadhaar Match: SUCCESS');
+            const tenth_matched = comment.includes('10th Marks Match: SUCCESS');
+            const twelfth_matched = comment.includes('12th Marks Match: SUCCESS');
+            const verified = name_matched && aadhaar_matched && tenth_matched && twelfth_matched;
+            return verified ? 'Verified' : 'Flagged';
+          }
+          return 'Not Processed';
+        };
+
+        const total = apps.length;
+        const approved = apps.filter(a => a.status === 'Approved').length;
+        const rejected = apps.filter(a => a.status === 'Rejected').length;
+        const pending = apps.filter(a => a.status === 'Pending' || a.status === 'Under Verification').length;
+        const flagged = apps.filter(a => getOcrStatusForApp(a) === 'Flagged').length;
+
+        // Group department stats
+        const deptMap = {};
+        apps.forEach(a => {
+          const code = a.department?.code || 'Unknown';
+          const name = a.department?.name || 'Unknown';
+          if (!deptMap[code]) deptMap[code] = { code, name, count: 0 };
+          deptMap[code].count++;
+        });
+        const departments = Object.values(deptMap);
+
+        // Group monthly admissions (approved status)
+        const monthlyMap = {};
+        apps.filter(a => a.status === 'Approved').forEach(a => {
+          const date = new Date(a.updated_at || a.created_at);
+          const month = date.toLocaleString('default', { month: 'short' });
+          if (!monthlyMap[month]) monthlyMap[month] = { month, count: 0, _date: date };
+          monthlyMap[month].count++;
+        });
+        const monthly = Object.values(monthlyMap).sort((a, b) => a._date - b._date).slice(-6);
+
+        // Recent activity
+        const activity = [...apps].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5).map(a => ({
+          id: a.id,
+          full_name: a.full_name,
+          department_code: a.department?.code,
+          status: a.status,
+          created_at: a.created_at
+        }));
+
+        setStats({
+          cards: { total, approved, rejected, pending, flagged },
+          departments,
+          monthly,
+          activity
+        });
+        setActivityPage(1);
+
+      } catch (fallbackErr) {
+        console.error('Supabase fallback failed:', fallbackErr);
+        setErrorMsg('Failed to load dashboard metrics. Try refreshing the page.');
+      }
     } finally {
       setLoading(false);
     }
