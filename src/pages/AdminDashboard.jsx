@@ -29,48 +29,24 @@ export default function AdminDashboard() {
     setErrorMsg('');
     
     try {
-      const { data: apps, error } = await supabase
-        .from('applications')
-        .select('*, department:departments(code, name)');
-        
-      if (error) throw error;
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/dashboard-stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
-      const total = apps.length;
-      const approved = apps.filter(a => a.status === 'Approved').length;
-      const rejected = apps.filter(a => a.status === 'Rejected').length;
-      const pending = apps.filter(a => a.status === 'Pending').length;
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard metrics');
+      }
 
-      const deptMap = {};
-      apps.forEach(a => {
-        const code = a.department?.code || 'Unknown';
-        const name = a.department?.name || 'Unknown';
-        if (!deptMap[code]) deptMap[code] = { code, name, count: 0 };
-        deptMap[code].count++;
-      });
-      const departments = Object.values(deptMap);
-
-      const monthlyMap = {};
-      apps.filter(a => a.status === 'Approved').forEach(a => {
-        const date = new Date(a.updated_at);
-        const month = date.toLocaleString('default', { month: 'short' });
-        if (!monthlyMap[month]) monthlyMap[month] = { month, count: 0, _date: date };
-        monthlyMap[month].count++;
-      });
-      const monthly = Object.values(monthlyMap).sort((a,b) => a._date - b._date).slice(-6);
-
-      const activity = [...apps].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(a => ({
-        id: a.id,
-        full_name: a.full_name,
-        department_name: a.department?.name,
-        status: a.status,
-        created_at: a.created_at
-      }));
+      const data = await response.json();
 
       setStats({
-        cards: { total, approved, rejected, pending },
-        departments,
-        monthly,
-        activity
+        cards: data.cards,
+        departments: data.departments,
+        monthly: data.monthly,
+        activity: data.activity
       });
       setActivityPage(1);
       
