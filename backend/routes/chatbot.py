@@ -36,7 +36,8 @@ def get_document_url(file_path):
 def call_gemini(prompt, system_instruction=None, json_mode=False):
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
-        return {"error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file."}
+        print('[GEMINI] GEMINI_API_KEY not found in environment. Check backend/.env and restart the server.')
+        return {"error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file and restart the backend."}
     
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"

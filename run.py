@@ -34,5 +34,12 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"  API: http://localhost:{port}/api")
     print(f"  Health: http://localhost:{port}/api/health")
+    # Print whether Gemini API key is configured (do not print the actual key)
+    try:
+        import os
+        gemini_present = bool(os.getenv('GEMINI_API_KEY'))
+        print(f"  Gemini API Key Configured: {gemini_present}")
+    except Exception:
+        pass
     print("=" * 60)
     app.run(host='0.0.0.0', port=port, debug=True)
