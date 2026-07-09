@@ -24,7 +24,7 @@ if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
 # Ensure the project root is in sys.path so `backend` resolves as a package
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from backend.app import app
+from api.backend.app import app
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
