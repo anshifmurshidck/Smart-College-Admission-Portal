@@ -235,6 +235,25 @@ class DatabaseManager:
                          app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
                          app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), app["status"], app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"))
                     )
+                
+                # Also sync into students table
+                if app.get("status") == "Approved" and app.get("assigned_student_id"):
+                    student_id = app["assigned_student_id"]
+                    existing_student = self.execute_read_one("SELECT id FROM students WHERE id = %s", (student_id,))
+                    if existing_student:
+                        self.execute_write(
+                            """UPDATE students SET 
+                               full_name=%s, email=%s, phone=%s, dob=%s, gender=%s, department_id=%s 
+                               WHERE id=%s""",
+                            (app["full_name"], app["email"], app["phone"], app["dob"], app["gender"], app["department_id"], student_id)
+                        )
+                    else:
+                        self.execute_write(
+                            """INSERT INTO students 
+                               (id, application_id, full_name, email, phone, dob, gender, department_id) 
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                            (student_id, app["id"], app["full_name"], app["email"], app["phone"], app["dob"], app["gender"], app["department_id"])
+                        )
             print("[DB SYNC] Supabase database sync completed successfully.")
         except Exception as e:
             print(f"[DB SYNC] Error syncing Supabase data: {e}")
