@@ -9,15 +9,15 @@ SQLite fallback is enabled by default if MySQL is not configured.
 import sys
 import os
 
-# Reconfigure stdout/stderr to UTF-8 to prevent charmap encoding errors on Windows
+# Force stdout/stderr to use UTF-8 and replace encoding errors to prevent crashes on Windows consoles
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
-        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     try:
-        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
@@ -42,4 +42,4 @@ if __name__ == '__main__':
     except Exception:
         pass
     print("=" * 60)
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)

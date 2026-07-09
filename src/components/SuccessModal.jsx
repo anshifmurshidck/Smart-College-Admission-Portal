@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Copy, CheckCircle2 } from 'lucide-react';
+import { Check, Copy, CheckCircle2, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -15,6 +15,7 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
   const isApproved = ocrResult?.verified;
   const studentId = ocrResult?.studentId;
   const details = ocrResult?.details || {};
+  const hasMismatch = ocrResult && !isApproved;
 
   return (
     <div 
@@ -45,27 +46,55 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
           boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)'
         }}
       >
-        {/* Animated Check */}
-        <div style={{
-          width: '72px',
-          height: '72px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 24px auto',
-          boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
-        }}>
-          <Check size={36} color="white" />
-        </div>
+        {/* Animated Icon Header (Check vs Warning) */}
+        {hasMismatch ? (
+          <div style={{
+            width: '72px',
+            height: '72px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 24px auto',
+            boxShadow: '0 0 20px rgba(239, 68, 68, 0.4)'
+          }}>
+            <AlertTriangle size={36} color="white" />
+          </div>
+        ) : (
+          <div style={{
+            width: '72px',
+            height: '72px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 24px auto',
+            boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
+          }}>
+            <Check size={36} color="white" />
+          </div>
+        )}
 
-        <h3 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px', fontFamily: 'var(--font-secondary)' }}>
-          Application Submitted!
+        <h3 style={{ 
+          fontSize: '24px', 
+          fontWeight: '700', 
+          marginBottom: '12px', 
+          fontFamily: 'var(--font-secondary)',
+          color: hasMismatch ? '#ef4444' : 'var(--text-primary)'
+        }}>
+          {hasMismatch ? 'Verification Mismatch Detected' : 'Application Submitted!'}
         </h3>
         
         <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px', fontSize: '14px' }}>
-          Thank you! Your application has been successfully submitted and is now under administrative review. The admissions office will evaluate your academic details and documents shortly.
+          {hasMismatch ? (
+            <span>
+              Your application was submitted, but a mismatch was detected between the details you entered and your uploaded documents (specifically {!details.aadhaar_matched ? <strong>your Aadhaar number</strong> : 'your academic/personal details'}). It has been <strong>flagged for Manual Review</strong> by the admissions office.
+            </span>
+          ) : (
+            'Thank you! Your application has been successfully submitted and is now under administrative review. The admissions office will evaluate your academic details and documents shortly.'
+          )}
         </p>
 
         {ocrResult && !ocrResult.tesseractActive && !ocrResult.details?.error && (
@@ -127,8 +156,8 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
             ) : (
               <div 
                 style={{
-                  backgroundColor: 'rgba(245,158,11,0.06)', 
-                  border: '1px solid rgba(245, 158, 11, 0.15)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.06)', 
+                  border: '1px solid rgba(239, 68, 68, 0.15)',
                   borderRadius: 'var(--radius-sm)',
                   padding: '16px',
                   fontSize: '12px',
@@ -137,12 +166,12 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
                   marginBottom: '20px'
                 }}
               >
-                <div style={{ fontWeight: '700', color: '#d97706', marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px' }}>
+                <div style={{ fontWeight: '700', color: '#ef4444', marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px' }}>
                   ⚠️ AI OCR Pre-Verification Flags:
                 </div>
                 <ul style={{ paddingLeft: '20px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {!details.name_matched && <li>Applicant name on ID Proof does not match filled name.</li>}
-                  {!details.aadhaar_matched && <li>Aadhaar Number on ID Proof does not match filled number.</li>}
+                  {!details.aadhaar_matched && <li style={{ fontWeight: '600', color: '#ef4444' }}>Aadhaar Number on ID Proof does not match filled number.</li>}
                   {!details.tenth_matched && <li>Marks or percentage on 10th Marksheet do not match filled details.</li>}
                   {!details.twelfth_matched && <li>Marks or percentage on 12th Marksheet do not match filled details.</li>}
                 </ul>

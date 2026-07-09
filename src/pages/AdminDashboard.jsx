@@ -92,7 +92,8 @@ export default function AdminDashboard() {
     { label: 'Total Applications', value: stats.cards.total, icon: FileText, color: 'var(--color-royal)', bg: 'rgba(37, 99, 235, 0.08)' },
     { label: 'Approved Students', value: stats.cards.approved, icon: UserCheck, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)' },
     { label: 'Rejected Applications', value: stats.cards.rejected, icon: UserX, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)' },
-    { label: 'Pending Verification', value: stats.cards.pending, icon: Clock, color: '#d97706', bg: 'rgba(217, 119, 6, 0.08)' }
+    { label: 'Pending Verification', value: stats.cards.pending, icon: Clock, color: '#d97706', bg: 'rgba(217, 119, 6, 0.08)' },
+    { label: 'Mismatches (Manual Review)', value: stats.cards.flagged, icon: ShieldAlert, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)' }
   ];
 
   // Max value for scaling SVG chart heights

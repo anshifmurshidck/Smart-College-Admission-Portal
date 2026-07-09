@@ -72,6 +72,7 @@ export default function ApplicationsList() {
   // Search & Filter state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [ocrFilter, setOcrFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [departments, setDepartments] = useState([]);
   
@@ -103,7 +104,8 @@ export default function ApplicationsList() {
           email, 
           status,
           assigned_student_id,
-          department:departments(name, code)
+          department:departments(name, code),
+          status_history(comments, status)
         `);
       
       if (search) {
@@ -136,7 +138,7 @@ export default function ApplicationsList() {
     };
     loadDepts();
     setPage(1);
-  }, [search, statusFilter, deptFilter]);
+  }, [search, statusFilter, ocrFilter, deptFilter]);
 
   const viewApplicationDetails = async (appId) => {
     setSelectedApp(appId);
@@ -340,8 +342,49 @@ export default function ApplicationsList() {
     );
   };
 
-  const totalPages = Math.max(1, Math.ceil(applications.length / PAGE_SIZE));
-  const paginatedApplications = applications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const getOcrBadge = (app) => {
+    const report = getOcrReport(app, null);
+    const ocrStatus = report?.ocrStatus || app.ocr_status || 'Not Processed';
+    
+    let color = '#64748b';
+    let bg = 'rgba(100, 116, 139, 0.08)';
+    let text = 'Not Processed';
+    
+    if (ocrStatus === 'Verified') {
+      color = '#059669';
+      bg = 'rgba(5, 150, 105, 0.08)';
+      text = '✓ Verified';
+    } else if (ocrStatus === 'Flagged') {
+      color = '#ef4444';
+      bg = 'rgba(239, 68, 68, 0.08)';
+      text = '⚠️ Mismatch (Manual)';
+    }
+    
+    return (
+      <span style={{ 
+        padding: '4px 10px', 
+        borderRadius: 'var(--radius-full)', 
+        fontSize: '11px', 
+        fontWeight: '700', 
+        color, 
+        backgroundColor: bg,
+        border: `1px solid ${color}15`,
+        display: 'inline-block'
+      }}>
+        {text}
+      </span>
+    );
+  };
+
+  const filteredApplications = applications.filter(app => {
+    if (!ocrFilter) return true;
+    const report = getOcrReport(app, app.status_history);
+    const ocrStatus = report?.ocrStatus || 'Not Processed';
+    return ocrStatus === ocrFilter;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredApplications.length / PAGE_SIZE));
+  const paginatedApplications = filteredApplications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -388,6 +431,16 @@ export default function ApplicationsList() {
             </select>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Filter size={16} style={{ color: 'var(--text-secondary)' }} />
+            <select value={ocrFilter} onChange={(e) => setOcrFilter(e.target.value)} className="form-select" style={{ padding: '8px 12px', fontSize: '13px' }}>
+              <option value="">All Verifications</option>
+              <option value="Verified">Verified (Success)</option>
+              <option value="Flagged">Flagged (Mismatch)</option>
+              <option value="Not Processed">Not Processed</option>
+            </select>
+          </div>
+
           <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="form-select" style={{ padding: '8px 12px', fontSize: '13px' }}>
             <option value="">All Departments</option>
             {departments.map((d) => (
@@ -419,7 +472,8 @@ export default function ApplicationsList() {
                 <th style={{ padding: '12px 16px' }}>Name</th>
                 <th style={{ padding: '12px 16px' }}>Email</th>
                 <th style={{ padding: '12px 16px' }}>Branch</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
+                <th style={{ padding: '12px 16px' }}>Verification Status</th>
+                <th style={{ padding: '12px 16px' }}>Admin Status</th>
                 <th style={{ padding: '12px 16px' }}>Actions</th>
               </tr>
             </thead>
@@ -437,6 +491,7 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
                   <td style={{ padding: '16px' }}>{app.department?.name || '-'}</td>
+                  <td style={{ padding: '16px' }}>{getOcrBadge(app)}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -546,7 +601,7 @@ export default function ApplicationsList() {
 
           {/* Pagination */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            <span>Page {page} of {totalPages} — {applications.length} records</span>
+            <span>Page {page} of {totalPages} — {filteredApplications.length} records</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
                 <ChevronLeft size={14} />
@@ -617,6 +672,30 @@ export default function ApplicationsList() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                 
+                {(() => {
+                  const report = getOcrReport(modalDetails.application, modalDetails.timeline);
+                  if (report && report.ocrStatus === 'Flagged') {
+                    return (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '16px',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        color: '#ef4444',
+                        fontSize: '13px',
+                        fontWeight: '600'
+                      }}>
+                        <AlertCircle size={20} />
+                        <span>Flagged for Manual Review: Mismatch detected in uploaded documents.</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Profile Grid */}
                 <div>
                   <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '16px' }}>

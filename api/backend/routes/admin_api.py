@@ -17,6 +17,7 @@ def get_dashboard_stats(current_user):
         approved = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Approved'")['count']
         rejected = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Rejected'")['count']
         pending = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Pending' OR status = 'Under Verification'")['count']
+        flagged = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE ocr_status = 'Flagged'")['count']
 
         # 2. Department-wise applications
         dept_stats = db.execute_read(
@@ -64,7 +65,8 @@ def get_dashboard_stats(current_user):
                 'total': total,
                 'approved': approved,
                 'rejected': rejected,
-                'pending': pending
+                'pending': pending,
+                'flagged': flagged
             },
             'departments': dept_stats,
             'monthly': monthly_stats,
