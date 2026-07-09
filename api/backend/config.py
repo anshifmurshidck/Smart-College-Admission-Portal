@@ -31,7 +31,7 @@ class Config:
     FALLBACK_SQLITE = os.getenv("FALLBACK_SQLITE", "true").lower() in ("true", "1", "yes")
     
     if os.getenv("VERCEL"):
-        SQLITE_PATH = "/tmp/tmec_portal_v3.db"
+        SQLITE_PATH = "/tmp/tmec_portal_v4.db"
     else:
         SQLITE_PATH = os.path.join(os.path.dirname(__file__), "tmec_portal.db")
     
