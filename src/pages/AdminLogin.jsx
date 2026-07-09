@@ -34,19 +34,21 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE}/auth/login`, {
-        username,
-        password
-      });
-
-      const { token, admin } = response.data;
-      localStorage.setItem('adminToken', token);
-      localStorage.setItem('adminData', JSON.stringify(admin));
-      setLoading(false);
-      navigate('/admin/dashboard');
+      // Mock login for frontend-only deployment
+      if (username === 'admin' && password === 'admin123') {
+        const token = 'mock-jwt-token-12345';
+        const admin = { id: 1, username: 'admin', name: 'Super Admin', role: 'super_admin' };
+        
+        localStorage.setItem('adminToken', token);
+        localStorage.setItem('adminData', JSON.stringify(admin));
+        setLoading(false);
+        navigate('/admin/dashboard');
+      } else {
+        throw new Error('Invalid username or password');
+      }
     } catch (err) {
       console.error(err);
-      const errMsg = err.response?.data?.message || 'Login failed. Verify credentials and try again.';
+      const errMsg = err.message || 'Login failed. Verify credentials and try again.';
       setErrorMsg(errMsg);
       setLoading(false);
     }
