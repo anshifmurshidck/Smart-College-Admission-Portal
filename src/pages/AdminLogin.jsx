@@ -34,17 +34,15 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // Mock login for frontend-only deployment
-      if (username === 'admin' && password === 'admin123') {
-        const token = 'mock-jwt-token-12345';
-        const admin = { id: 1, username: 'admin', name: 'Super Admin', role: 'super_admin' };
-        
-        localStorage.setItem('adminToken', token);
-        localStorage.setItem('adminData', JSON.stringify(admin));
+      const response = await axios.post(`${API_BASE}/auth/login`, { username, password });
+      
+      if (response.data && response.data.token) {
+        localStorage.setItem('adminToken', response.data.token);
+        localStorage.setItem('adminData', JSON.stringify(response.data.admin));
         setLoading(false);
         navigate('/admin/dashboard');
       } else {
-        throw new Error('Invalid username or password');
+        throw new Error('Invalid response from server');
       }
     } catch (err) {
       console.error(err);
