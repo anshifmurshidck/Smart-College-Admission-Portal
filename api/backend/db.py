@@ -185,7 +185,7 @@ class DatabaseManager:
                 return
 
             print(f"[DB SYNC] Fetching approved applications from Supabase: {supabase_url}")
-            url = f"{supabase_url.rstrip('/')}/rest/v1/applications?status=eq.Approved"
+            url = f"{supabase_url.rstrip('/')}/rest/v1/applications"
             headers = {
                 "apikey": supabase_key,
                 "Authorization": f"Bearer {supabase_key}"
