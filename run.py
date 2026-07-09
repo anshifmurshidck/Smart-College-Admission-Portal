@@ -9,6 +9,18 @@ SQLite fallback is enabled by default if MySQL is not configured.
 import sys
 import os
 
+# Reconfigure stdout/stderr to UTF-8 to prevent charmap encoding errors on Windows
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 # Ensure the project root is in sys.path so `backend` resolves as a package
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

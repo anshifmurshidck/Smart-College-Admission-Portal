@@ -703,6 +703,83 @@ export default function StudentDatabase() {
                     );
                   })}
 
+                  {/* OCR AI Verification Report */}
+                  {(() => {
+                    const report = (() => {
+                      if (studentDetails.student && studentDetails.student.ocr_status && studentDetails.student.ocr_status !== 'Not Processed') {
+                        try {
+                          const details = studentDetails.student.ocr_details ? JSON.parse(studentDetails.student.ocr_details) : {};
+                          return {
+                            ocrStatus: studentDetails.student.ocr_status,
+                            details: details
+                          };
+                        } catch (e) {
+                          // ignore JSON parse error
+                        }
+                      }
+                      return null;
+                    })();
+
+                    if (!report) return null;
+                    const isVerified = report.ocrStatus === 'Verified';
+                    return (
+                      <div style={{
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        backgroundColor: 'var(--bg-secondary)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        marginTop: '16px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🔍 AI OCR Verification Report
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            textTransform: 'uppercase',
+                            backgroundColor: isVerified ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: isVerified ? '#059669' : '#d97706'
+                          }}>
+                            {report.ocrStatus}
+                          </span>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Applicant Name:</span>
+                            <span style={{ fontWeight: '700', color: report.details.name_matched ? '#059669' : '#ef4444' }}>
+                              {report.details.name_matched ? '✓ Match' : '✗ Mismatch'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Aadhaar Number:</span>
+                            <span style={{ fontWeight: '700', color: report.details.aadhaar_matched ? '#059669' : '#ef4444' }}>
+                              {report.details.aadhaar_matched ? '✓ Match' : '✗ Mismatch'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>10th Marksheet:</span>
+                            <span style={{ fontWeight: '700', color: report.details.tenth_matched ? '#059669' : '#ef4444' }}>
+                              {report.details.tenth_matched ? '✓ Match' : '✗ Mismatch'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>12th Marksheet:</span>
+                            <span style={{ fontWeight: '700', color: report.details.twelfth_matched ? '#059669' : '#ef4444' }}>
+                              {report.details.twelfth_matched ? '✓ Match' : '✗ Mismatch'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Uploaded Documents List with Preview links */}
                   {studentDetails.documents && studentDetails.documents.length > 0 && (
                     <div style={{ marginTop: '16px' }}>

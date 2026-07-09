@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 class Config:
     SECRET_KEY = os.getenv("JWT_SECRET", "tmec_fallback_session_secret_key_987654")

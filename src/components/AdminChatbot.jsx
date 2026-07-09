@@ -251,7 +251,7 @@ export default function AdminChatbot() {
   };
 
   // Only show chatbot trigger/content on student database page, but keep state mounted in background
-  const isVisible = location.pathname === '/admin/students' && !!token();
+  const isVisible = location.pathname === '/admin/students' && !!localStorage.getItem('adminToken');
 
   return (
     <div style={{ display: isVisible ? 'contents' : 'none' }}>

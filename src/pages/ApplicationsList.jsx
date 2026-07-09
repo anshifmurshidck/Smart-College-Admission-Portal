@@ -349,7 +349,7 @@ export default function ApplicationsList() {
       {/* Header */}
       <div>
         <h2 style={{ fontSize: '28px', fontWeight: '800', fontFamily: 'var(--font-secondary)' }}>Applications Portal</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>Review academic profile records and update verify status.</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>Review academic profile records and update application status.</p>
       </div>
 
       {/* Filter Control Box */}
@@ -838,7 +838,7 @@ export default function ApplicationsList() {
                 {/* Status Update Form */}
                 <div style={{ borderTop: '2px solid var(--border-color)', paddingTop: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                    Action Box / Verification Status
+                    Action Box / Update Application Status
                   </h4>
                   
                   {modalDetails.application.status === 'Approved' ? (
@@ -849,7 +849,7 @@ export default function ApplicationsList() {
                   ) : (
                     <form onSubmit={handleStatusSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <div className="form-group">
-                        <label className="form-label">Set Verification Status</label>
+                        <label className="form-label">Update Application Status</label>
                         <select 
                           value={newStatus} 
                           onChange={(e) => setNewStatus(e.target.value)} 
@@ -879,7 +879,7 @@ export default function ApplicationsList() {
                         disabled={submittingStatus}
                         style={{ padding: '12px', fontSize: '14px', display: 'flex', justifyContent: 'center', gap: '8px', opacity: submittingStatus ? 0.7 : 1 }}
                       >
-                        {submittingStatus ? 'Updating Audit Log...' : 'Updation Application Status'}
+                        {submittingStatus ? 'Updating Application Status...' : 'Update Application Status'}
                       </button>
                     </form>
                   )}

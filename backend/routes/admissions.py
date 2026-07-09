@@ -6,18 +6,18 @@ import requests
 import pytesseract
 import pypdf
 from PIL import Image
-import easyocr
 import fitz
 import numpy as np
+from difflib import SequenceMatcher
 from io import BytesIO
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from backend.db import db
 from backend.config import Config
-
+from backend.ocr_utils import extract_text
 
 admissions_bp = Blueprint('admissions', __name__)
-reader = easyocr.Reader(['en'], gpu=False)
+
 
 import shutil
 # Dynamic Windows Tesseract executable auto-discovery
@@ -55,137 +55,141 @@ def try_read_as_text(file_path):
         print(f"[OCR FALLBACK] error reading as text: {e}")
     return ""
 
-def extract_text_from_pdf(file_path):
-    text = ""
-    try:
-        reader = pypdf.PdfReader(file_path)
-        for page in reader.pages:
-            text += page.extract_text() or ""
-        
-        # Fallback if no text extracted (scanned PDF)
-        if not text.strip():
-            print("[OCR] Scanned PDF detected. Attempting page image extraction & OCR...")
-            from io import BytesIO
-            for page_idx, page in enumerate(reader.pages):
-                for img_idx, img_info in enumerate(page.images):
-                    try:
-                        img_bytes = img_info.data
-                        img = Image.open(BytesIO(img_bytes))
-                        page_text = pytesseract.image_to_string(img)
-                        if page_text:
-                            text += page_text + "\n"
-                    except Exception as img_err:
-                        print(f"[OCR] Failed to extract page {page_idx} image {img_idx}: {img_err}")
-    except Exception as e:
-        print(f"[OCR] Error reading PDF: {e}")
-    return text
 
-def extract_text_from_image(file_path):
+def _parse_float(value):
+    if value is None or str(value).strip() == "":
+        return None
     try:
-        img = Image.open(file_path)
-        text = pytesseract.image_to_string(img)
-        return text
-    except Exception as e:
-        print(f"[OCR] Tesseract OCR unavailable: {e}")
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_ocr_numbers(text):
+    """Fix common Tesseract mistakes before numeric matching."""
+    if not text:
         return ""
+    return (
+        text.replace("O", "0")
+            .replace("o", "0")
+            .replace("I", "1")
+            .replace("l", "1")
+            .replace(",", "")
+    )
 
-def extract_text_from_file(file_path):
-    text_content = try_read_as_text(file_path)
-    if text_content:
-        return text_content
-        
-    ext = file_path.rsplit('.', 1)[1].lower() if '.' in file_path else ''
-    if ext == 'pdf':
-        return extract_text_from_pdf(file_path)
-    else:
-        return extract_text_from_image(file_path)
 
-def extract_text_easyocr(file_path):
-    text_content = try_read_as_text(file_path)
-    if text_content:
-        return text_content
-        
-    ext = file_path.rsplit('.', 1)[1].lower() if '.' in file_path else ''
-    if ext == 'pdf':
-        return extract_text_from_pdf(file_path)
-    
-    try:
-        result = reader.readtext(file_path)
-        text = " ".join([res[1] for res in result])
-        return text
-    except Exception as e:
-        print(f"[EasyOCR] Error: {e}")
-        return ""
+def _extract_numbers(text):
+    normalized = _normalize_ocr_numbers(text)
+    values = []
+    for num_str in re.findall(r'\d+(?:\.\d+)?', normalized):
+        try:
+            values.append(float(num_str))
+        except ValueError:
+            continue
+    return values
+
+
+def _has_number_near(numbers, target, tolerance=0.5):
+    if target is None:
+        return True
+    return any(abs(value - target) <= tolerance for value in numbers)
+
+
+def _mark_contexts(text, maximum):
+    normalized = _normalize_ocr_numbers(text)
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    contexts = []
+    keywords = (
+        'total', 'grand', 'aggregate', 'obtained', 'maximum', 'max',
+        'marks secured', 'marks obtained', 'overall'
+    )
+
+    for index, line in enumerate(lines):
+        lower_line = line.lower()
+        line_numbers = _extract_numbers(line)
+        has_keyword = any(keyword in lower_line for keyword in keywords)
+        has_max = maximum is not None and _has_number_near(line_numbers, maximum)
+
+        if not has_keyword and not has_max:
+            continue
+
+        window = lines[index: index + 2]
+        context_text = ' '.join(window)
+        context_numbers = _extract_numbers(context_text)
+        if context_numbers:
+            contexts.append((context_text, context_numbers))
+
+    return contexts
+
+
 def verify_percentage_in_text(text, target_pct):
-    if not target_pct:
+    target_val = _parse_float(target_pct)
+    if target_val is None:
         return True
-    try:
-        target_val = float(target_pct)
-    except:
-        return True
-        
-    numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
-    for num_str in numbers:
-        try:
-            val = float(num_str)
-            if abs(val - target_val) <= 1.0:
-                return True
-        except:
-            continue
-            
-    target_str = f"{target_val:.1f}"
-    target_str_alt = f"{int(round(target_val))}"
-    if target_str in text or target_str_alt in text:
-        return True
-        
-    return False
 
-def verify_marks_in_text(text, total_marks, max_marks):
-    if not total_marks or not max_marks:
+    numbers = _extract_numbers(text)
+    # OCR often drops/rounds decimal percentages, so allow a small tolerance.
+    return _has_number_near(numbers, target_val, tolerance=1.0)
+
+
+def verify_marks_in_text(text, total_marks, max_marks, target_pct=None):
+    total = _parse_float(total_marks)
+    maximum = _parse_float(max_marks)
+    if total is None or maximum is None:
         return True
-    try:
-        tot_val = float(total_marks)
-        max_val = float(max_marks)
-    except:
-        return True
-        
-    tot_str = f"{int(tot_val)}"
-    max_str = f"{int(max_val)}"
-    
-    if tot_str in text and max_str in text:
-        return True
-        
-    numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
-    tot_found = False
-    max_found = False
-    for num_str in numbers:
-        try:
-            val = float(num_str)
-            if abs(val - tot_val) < 0.1:
-                tot_found = True
-            if abs(val - max_val) < 0.1:
-                max_found = True
-        except:
-            continue
-            
-    return tot_found and max_found
+
+    all_numbers = _extract_numbers(text)
+    contexts = _mark_contexts(text, maximum)
+
+    print("Numbers found:", all_numbers)
+    print("Looking for:", total, maximum)
+    print("Mark contexts:", contexts)
+
+    if contexts:
+        for context_text, context_numbers in contexts:
+            context_total_found = _has_number_near(context_numbers, total)
+            context_max_found = _has_number_near(context_numbers, maximum)
+
+            print("Context:", context_text)
+            print("Context Total Found:", context_total_found)
+            print("Context Max Found:", context_max_found)
+
+            if context_max_found:
+                return context_total_found
+
+        # Aggregate words were found, but max marks were not read clearly. In
+        # that case the entered total must still appear in the aggregate context.
+        return any(_has_number_near(context_numbers, total) for _, context_numbers in contexts)
+
+    # No aggregate context was detected. Be strict: avoid passing just because
+    # the typed value appears somewhere unrelated, such as a register number.
+    print("No aggregate marks context found; marks verification failed.")
+    return False
+def normalize_name(name):
+    return re.sub(r'[^a-z]', '', name.lower())
 
 def verify_name_in_text(text, full_name):
     if not full_name:
         return True
-    text_lower = text.lower()
-    words = [w.strip() for w in full_name.lower().split() if len(w.strip()) > 2]
-    if not words:
-        return full_name.lower() in text_lower
-        
-    matches = sum(1 for w in words if w in text_lower)
-    return (matches / len(words)) >= 0.7
+
+    ocr_text = normalize_name(text)
+    form_name = normalize_name(full_name)
+
+    print("OCR Text:", ocr_text)
+    print("Form Name:", form_name)
+
+    return form_name in ocr_text
 
 def verify_aadhaar_in_text(text, aadhaar):
     if not aadhaar:
         return True
+    
     aadhaar_clean = re.sub(r'\D', '', str(aadhaar))
     text_clean = re.sub(r'\D', '', text)
+
+    print("OCR Digits:", text_clean)
+    print("Entered Aadhaar:", aadhaar_clean)
+
     return aadhaar_clean in text_clean
 
 
@@ -206,6 +210,7 @@ def generate_application_id():
 
 @admissions_bp.route('/verify-ocr', methods=['POST'])
 def verify_ocr():
+    print(">>>>>>>> verify_ocr called <<<<<<<<")
     try:
         # Retrieve form data
         full_name = request.form.get('fullName', '')
@@ -245,10 +250,24 @@ def verify_ocr():
         id_proof.save(id_path)
 
         
-        # Extract texts using EasyOCR
-        m10_text = extract_text_easyocr(m10_path)
-        m12_text = extract_text_easyocr(m12_path)
-        id_text = extract_text_easyocr(id_path)
+        # Extract texts using OCR
+        m10_text = extract_text(m10_path)
+        m12_text = extract_text(m12_path)
+        id_text = extract_text(id_path)
+        print("===== FORM VALUES =====")
+        print("Name:", full_name)
+        print("Aadhaar:", aadhaar_number)
+        print("10th %:", tenth_percentage)
+        print("10th Total:", tenth_total_marks)
+        print("10th Max:", tenth_max_marks)
+        print("12th %:", twelfth_percentage)
+        print("12th Total:", twelfth_total_marks)
+        print("12th Max:", twelfth_max_marks)
+
+        print("\n===== OCR TEXT =====")
+        print("ID Proof:\n", id_text)
+        print("\n10th Marksheet:\n", m10_text)
+        print("\n12th Marksheet:\n", m12_text)
 
         # Remove temp files
         for p in [m10_path, m12_path, id_path]:
@@ -294,24 +313,41 @@ def verify_ocr():
                 details['twelfth_matched'] = True
         else:
             # 1. ID Proof checks
-            details['name_matched'] = verify_name_in_text(id_text, full_name)
-            details['aadhaar_matched'] = verify_aadhaar_in_text(id_text, aadhaar_number)
+            name_match = verify_name_in_text(id_text, full_name)
+            aadhaar_match = verify_aadhaar_in_text(id_text, aadhaar_number)
 
+            print("Name Match:", name_match)
+            print("Aadhaar Match:", aadhaar_match)
+
+            details['name_matched'] = name_match
+            details['aadhaar_matched'] = aadhaar_match
             # 2. 10th Marksheet checks
             tenth_pct_match = verify_percentage_in_text(m10_text, tenth_percentage)
-            tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks)
-            details['tenth_matched'] = tenth_pct_match and tenth_marks_match
+            tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks, tenth_percentage)
+
+            print("10th Percentage Match:", tenth_pct_match)
+            print("10th Marks Match:", tenth_marks_match)
+
+            details['tenth_matched'] = tenth_marks_match
 
             # 3. 12th Marksheet checks
             twelfth_pct_match = verify_percentage_in_text(m12_text, twelfth_percentage)
-            twelfth_marks_match = verify_marks_in_text(m12_text, twelfth_total_marks, twelfth_max_marks)
-            details['twelfth_matched'] = twelfth_pct_match and twelfth_marks_match
+            twelfth_marks_match = verify_marks_in_text(m12_text, twelfth_total_marks, twelfth_max_marks, twelfth_percentage)
+
+            print("12th Percentage Match:", twelfth_pct_match)
+            print("12th Marks Match:", twelfth_marks_match)
+
+            details['twelfth_matched'] = twelfth_marks_match
 
         verified = all(details.values())
 
         message = "OCR verification successful. All documents matched." if verified else "OCR verification flagged. Mismatch in documents."
         if use_simulation and not verified:
             message = "OCR verification simulation flagged mismatch based on file names."
+
+        print("===== FINAL DETAILS =====")
+        print(details)
+        print("Verified:", verified)
 
         return jsonify({
             'success': True,
@@ -562,3 +598,5 @@ def track_status(app_id):
 
     except Exception as e:
         return jsonify({'message': 'Error tracking application', 'error': str(e)}), 500
+
+

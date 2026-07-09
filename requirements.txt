@@ -9,7 +9,6 @@ Werkzeug==3.0.3
 requests==2.31.0
 pytesseract==0.3.13
 pypdf==6.14.2
-easyocr
 PyMuPDF
 Pillow
 numpy

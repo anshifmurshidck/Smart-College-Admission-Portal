@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Outlet, Navigate } from 'react-router-dom';
-import AdminChatbot from '../components/AdminChatbot';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -13,6 +12,7 @@ import {
   X, 
   UserCircle 
 } from 'lucide-react';
+import AdminChatbot from '../components/AdminChatbot';
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,7 +43,7 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-primary)' }}>
       
       {/* Sidebar - Desktop */}
       <aside 
@@ -269,11 +269,9 @@ export default function AdminLayout() {
         <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
           <Outlet />
         </main>
-
-        {/* Global Admin Chatbot */}
-        <AdminChatbot />
       </div>
 
+      <AdminChatbot />
     </div>
   );
 }
