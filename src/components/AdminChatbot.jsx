@@ -60,7 +60,9 @@ export default function AdminChatbot() {
 
     try {
       const chatHistory = newMessages.map(m => ({
-        role: m.sender === 'user' ? 'user' : 'model',
+        sender: m.sender,
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        text: m.text,
         parts: [m.text]
       }));
 
@@ -89,12 +91,16 @@ export default function AdminChatbot() {
       ]);
     } catch (err) {
       console.error(err);
+      const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Could not deliver message.';
+      const helpText = err.response?.status === 401 || err.response?.status === 403
+        ? 'Please sign in again to refresh your session.'
+        : 'Please ensure the backend is running and reachable.';
       setMessages(prev => [
         ...prev,
         {
           id: `msg-${Date.now()}-err`,
           sender: 'bot',
-          text: '⚠️ **System Error**: Could not deliver message. Please ensure the backend is running and you are authenticated.',
+          text: `⚠️ **System Error**: ${apiMessage} ${helpText}`,
           timestamp: new Date()
         }
       ]);

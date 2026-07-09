@@ -362,6 +362,12 @@ def admin_chat(current_user):
         for h in history[-6:]:
             role = "admin" if h.get("sender") == "user" or h.get("role") == "user" else "chatbot"
             text = h.get("text") or h.get("content") or ""
+            if not text and isinstance(h.get("parts"), list) and h.get("parts"):
+                first_part = h.get("parts")[0]
+                if isinstance(first_part, str):
+                    text = first_part
+                elif isinstance(first_part, dict):
+                    text = first_part.get("text") or first_part.get("content") or ""
             history_summary.append(f"{role}: {text}")
         history_str = "\n".join(history_summary)
         
