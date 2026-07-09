@@ -96,30 +96,17 @@ export default function ApplicationsList() {
     setErrorMsg('');
     
     try {
-      let query = supabase
-        .from('applications')
-        .select(`
-          id, 
-          full_name, 
-          email, 
-          status,
-          assigned_student_id,
-          department:departments(name, code),
-          status_history(comments, status)
-        `);
+      const token = localStorage.getItem('adminToken');
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (statusFilter) params.append('status', statusFilter);
+      if (deptFilter) params.append('departmentId', deptFilter);
       
-      if (search) {
-        query = query.or(`full_name.ilike.%${search}%,id.ilike.%${search}%,email.ilike.%${search}%`);
-      }
-      if (statusFilter) {
-        query = query.eq('status', statusFilter);
-      }
-      if (deptFilter) {
-        query = query.eq('department_id', deptFilter);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const response = await fetch(`${API_BASE}/admin/applications?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
       setApplications(data);
     } catch (err) {
       console.error(err);
@@ -133,8 +120,15 @@ export default function ApplicationsList() {
     loadApplications();
     
     const loadDepts = async () => {
-      const { data } = await supabase.from('departments').select('*');
-      if (data) setDepartments(data);
+      try {
+        const response = await fetch(`${API_BASE}/departments`);
+        if (response.ok) {
+          const data = await response.json();
+          setDepartments(data);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     };
     loadDepts();
     setPage(1);
@@ -148,82 +142,21 @@ export default function ApplicationsList() {
     setComments('');
     
     try {
-      const { data: appData, error: appError } = await supabase
-        .from('applications')
-        .select(`*, department:departments(name, code)`)
-        .eq('id', appId)
-        .single();
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/applications/${appId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch details');
+      const data = await response.json();
       
-      if (appError) throw appError;
-
-      const { data: docsData, error: docsError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('application_id', appId);
-        
-      if (docsError) throw docsError;
-
-      const { data: timelineData, error: timelineError } = await supabase
-        .from('status_history')
-        .select('*')
-        .eq('application_id', appId)
-        .order('updated_at', { ascending: true });
-
-      if (timelineError) throw timelineError;
-
-      let timeline = timelineData || [];
-      if (timeline.length === 0) {
-        timeline = [{
-          status: appData.status,
-          updated_at: appData.created_at,
-          comments: appData.status === 'Pending' ? 'Application successfully submitted.' : 'Application status updated.',
-          updater_name: 'System Auto'
-        }];
-      }
-
-      let docs = docsData || [];
-      if (docs.length === 0) {
-        const docTypes = [
-          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
-          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
-          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
-        ];
-        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
-        
-        docs = await Promise.all(docTypes.map(async (doc) => {
-          let foundUrl = null;
-          for (const ext of exts) {
-            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appId}/${doc.name}${ext}`).data.publicUrl;
-            try {
-              const res = await fetch(publicUrl, { method: 'HEAD' });
-              if (res.ok) {
-                foundUrl = publicUrl;
-                break;
-              }
-            } catch (e) {
-              // ignore
-            }
-          }
-          return {
-            id: foundUrl ? `${appId}-${doc.id}` : `mock-${doc.id}`,
-            document_type: doc.title,
-            file_path: foundUrl || doc.fallback
-          };
-        }));
-      }
-
       const formattedDetails = {
-        application: {
-          ...appData,
-          department_code: appData.department.code,
-          department_name: appData.department.name
-        },
-        documents: docs,
-        timeline: timeline
+        application: data.application,
+        documents: data.documents || [],
+        timeline: data.timeline || []
       };
-
+      
       setModalDetails(formattedDetails);
-      setNewStatus(appData.status);
+      setNewStatus(data.application.status);
     } catch (err) {
       console.error(err);
       setModalError('Failed to retrieve application file details.');
@@ -237,33 +170,21 @@ export default function ApplicationsList() {
     if (!newStatus) return;
 
     setSubmittingStatus(true);
-
     try {
-      let studentId = modalDetails.application.assigned_student_id;
-
-      if (newStatus === 'Approved' && !studentId) {
-        const year = new Date().getFullYear();
-        const rand = Math.floor(1000 + Math.random() * 9000);
-        studentId = `STU-${year}-${rand}`;
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/applications/${selectedApp}/status`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus, comments })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status');
       }
-
-      const { error: updateError } = await supabase
-        .from('applications')
-        .update({ status: newStatus, assigned_student_id: studentId })
-        .eq('id', selectedApp);
-
-      if (updateError) throw updateError;
-
-      const { error: logError } = await supabase
-        .from('status_history')
-        .insert([{
-          application_id: selectedApp,
-          status: newStatus,
-          comments: comments || `Status changed to ${newStatus}`
-        }]);
-
-      if (logError) throw logError;
-
+      
       loadApplications();
       viewApplicationDetails(selectedApp);
     } catch (err) {
@@ -280,31 +201,24 @@ export default function ApplicationsList() {
 
     setActionLoading(prev => ({ ...prev, [appId]: newStatus }));
     try {
-      let studentId = null;
-
-      if (newStatus === 'Approved') {
-        studentId = app.assigned_student_id || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-
-      const { error: updateError } = await supabase
-        .from('applications')
-        .update({ status: newStatus, assigned_student_id: studentId })
-        .eq('id', appId);
-
-      if (updateError) throw updateError;
-
-      const { error: logError } = await supabase
-        .from('status_history')
-        .insert([{
-          application_id: appId,
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/applications/${appId}/status`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
           status: newStatus,
           comments: `Status updated to ${newStatus} directly from application list.`
-        }]);
-
-      if (logError) throw logError;
+        })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status');
+      }
 
       await loadApplications();
-
       if (selectedApp === appId) {
         viewApplicationDetails(appId);
       }

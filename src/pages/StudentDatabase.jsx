@@ -114,30 +114,29 @@ export default function StudentDatabase() {
     setLoading(true);
     setErrorMsg('');
     try {
-      let query = supabase.from('applications').select('*, department:departments(code, name)').eq('status', 'Approved');
-      
-      if (search) {
-        query = query.or(`full_name.ilike.%${search}%,assigned_student_id.ilike.%${search}%,email.ilike.%${search}%`);
-      }
-      if (deptFilter) {
-        query = query.eq('department_id', deptFilter);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
+      const token = localStorage.getItem('adminToken');
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (deptFilter) params.append('departmentId', deptFilter);
+
+      const response = await fetch(`${API_BASE}/admin/students?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
       
       const formatted = data.map(app => ({
-        id: app.assigned_student_id || `TMP-${app.id}`,
-        application_id: app.id,
+        id: app.id,
+        application_id: app.application_id,
         full_name: app.full_name,
         email: app.email,
         phone: app.phone,
         dob: app.dob,
         gender: app.gender,
         department_id: app.department_id,
-        department_code: app.department?.code,
-        department_name: app.department?.name,
-        enroll_date: app.updated_at
+        department_code: app.department_code,
+        department_name: app.department_name,
+        enroll_date: app.enroll_date
       }));
       setStudents(formatted);
       setPage(1);
@@ -150,8 +149,11 @@ export default function StudentDatabase() {
 
   const loadDepartments = async () => {
     try {
-      const { data } = await supabase.from('departments').select('*');
-      if (data) setDepartments(data);
+      const response = await fetch(`${API_BASE}/departments`);
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(data);
+      }
     } catch(e) {}
   };
 
@@ -167,59 +169,19 @@ export default function StudentDatabase() {
     setStudentDetails(null);
     
     try {
-      const appIdMatch = studentId.replace('TMP-', '');
-      const { data, error } = await supabase.from('applications')
-        .select('*, department:departments(code, name)')
-        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`)
-        .single();
-        
-      if (error) throw error;
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/students/${studentId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch details');
+      const { student: data, documents: docs } = await response.json();
       
-      const { data: docsData, error: docsError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('application_id', data.id);
-
-      if (docsError) throw docsError;
-
-      let docs = docsData || [];
-      if (docs.length === 0) {
-        const appIdForUrl = data.id;
-        const docTypes = [
-          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
-          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
-          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
-        ];
-        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
-        
-        docs = await Promise.all(docTypes.map(async (doc) => {
-          let foundUrl = null;
-          for (const ext of exts) {
-            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appIdForUrl}/${doc.name}${ext}`).data.publicUrl;
-            try {
-              const res = await fetch(publicUrl, { method: 'HEAD' });
-              if (res.ok) {
-                foundUrl = publicUrl;
-                break;
-              }
-            } catch (e) {
-              // ignore
-            }
-          }
-          return {
-            id: foundUrl ? `${appIdForUrl}-${doc.id}` : `mock-${doc.id}`,
-            document_type: doc.title,
-            file_path: foundUrl || doc.fallback
-          };
-        }));
-      }
-
       setStudentDetails({
         student: {
           ...data,
-          department_name: data.department?.name
+          department_name: data.department_name
         },
-        documents: docs
+        documents: docs || []
       });
       const parsed = parsePhoneNumber(data.phone);
       setEditForm({
@@ -328,7 +290,7 @@ export default function StudentDatabase() {
     }
 
     try {
-      const appIdMatch = selectedStudent.replace('TMP-', '');
+      const token = localStorage.getItem('adminToken');
       const updatedForm = {
         ...editForm,
         phone: combinedPhone,
@@ -337,11 +299,20 @@ export default function StudentDatabase() {
       };
       delete updatedForm.phoneCountryCode;
 
-      const { error } = await supabase.from('applications')
-        .update(updatedForm)
-        .or(`assigned_student_id.eq.${selectedStudent},id.eq.${appIdMatch}`);
+      const response = await fetch(`${API_BASE}/admin/students/${selectedStudent}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedForm)
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Edit failed');
+      }
+      
       loadStudents();
       viewStudent(selectedStudent);
       setEditMode(false);
@@ -352,12 +323,17 @@ export default function StudentDatabase() {
 
   const handleDelete = async (studentId) => {
     try {
-      const appIdMatch = studentId.replace('TMP-', '');
-      const { error } = await supabase.from('applications')
-        .update({ status: 'Pending', assigned_student_id: null })
-        .or(`assigned_student_id.eq.${studentId},id.eq.${appIdMatch}`);
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/students/${studentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Delete failed');
+      }
+      
       setDeleteTarget(null);
       setSelectedStudent(null);
       loadStudents();
@@ -398,29 +374,32 @@ export default function StudentDatabase() {
     setAddSuccess('');
     
     try {
-      const year = new Date().getFullYear();
-      const rand = Math.floor(1000 + Math.random() * 9000);
-      const studentId = `STU-${year}-${rand}`;
-      const appId = `APP-${year}-${rand}`;
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/admin/students/add`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fullName: addForm.fullName,
+          email: addForm.email,
+          phone: combinedPhone,
+          dob: addForm.dob,
+          gender: addForm.gender,
+          departmentId: addForm.departmentId,
+          address: addForm.address
+        })
+      });
       
-      const { error } = await supabase.from('applications').insert([{
-        id: appId,
-        full_name: addForm.fullName,
-        email: addForm.email,
-        phone: combinedPhone,
-        dob: addForm.dob,
-        gender: addForm.gender,
-        department_id: addForm.departmentId,
-        address: addForm.address,
-        status: 'Approved',
-        assigned_student_id: studentId,
-        parent_name: 'N/A',
-        parent_phone: 'N/A'
-      }]);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add student');
+      }
       
-      if (error) throw error;
+      const data = await response.json();
       
-      setAddSuccess(`Student registered! ID: ${studentId}`);
+      setAddSuccess(`Student registered! ID: ${data.studentId}`);
       setAddForm({ fullName:'', email:'', phoneCountryCode: '+91', phone:'', dob:'', gender:'', departmentId:'', address:'' });
       loadStudents();
     } catch(err) {
@@ -430,8 +409,31 @@ export default function StudentDatabase() {
     }
   };
 
-  const handleCSVExport = () => {
-    alert("CSV Export is disabled in mock mode.");
+  const handleCSVExport = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (deptFilter) params.append('departmentId', deptFilter);
+      params.append('export', 'csv');
+
+      const response = await fetch(`${API_BASE}/admin/students?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'students_database.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch(err) {
+      alert('Export failed');
+    }
   };
 
   // Pagination
