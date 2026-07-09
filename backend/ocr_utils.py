@@ -1,17 +1,51 @@
 import os
+import shutil
 import cv2
 import fitz  # PyMuPDF
 import numpy as np
 import pytesseract
 
-# Tell Python where Tesseract is installed
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+def configure_tesseract():
+    """Use an installed Tesseract binary without depending on one hardcoded path."""
+    configured = os.getenv("TESSERACT_CMD", "").strip()
+    
+    # Resolve through shutil.which if available
+    resolved_which = shutil.which("tesseract")
+    
+    candidates = [
+        configured,
+        resolved_which,
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+
+    local_appdata = os.getenv("LOCALAPPDATA")
+    if local_appdata:
+        candidates.append(os.path.join(local_appdata, "Tesseract-OCR", "tesseract.exe"))
+        candidates.append(os.path.join(local_appdata, "Programs", "Tesseract-OCR", "tesseract.exe"))
+
+    # Also check typical user profile paths just in case
+    candidates.append(r"C:\Users\ARDHRA\AppData\Local\Tesseract-OCR\tesseract.exe")
+    candidates.append(r"C:\Users\ARDHRA\AppData\Local\Programs\Tesseract-OCR\tesseract.exe")
+
+    for path in candidates:
+        if path and os.path.exists(path):
+            pytesseract.pytesseract.tesseract_cmd = path
+            print(f"[OCR] Tesseract binary successfully configured at: {path}")
+            return path
+
+    print("[OCR WARNING] Tesseract binary could not be found automatically! Image OCR will be simulated.")
+    return None
+
+configure_tesseract()
 
 
 def preprocess_image(image):
-
     # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if len(image.shape) == 2:
+        gray = image
+    else:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Enlarge small images
     h, w = gray.shape
@@ -50,10 +84,8 @@ def extract_text_from_image(file_path):
 
         processed = preprocess_image(img)
 
-        return pytesseract.image_to_string(
-            processed,
-            config="--oem 3 --psm 11"
-        )
+        # Default layout analysis is much more robust for structured documents like marksheets/IDs
+        return pytesseract.image_to_string(processed)
 
     except Exception as e:
         print("Image OCR Error:", e)

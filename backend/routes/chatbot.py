@@ -33,30 +33,29 @@ def get_document_url(file_path):
     server_port = os.getenv("PORT", "5000")
     return f"http://localhost:{server_port}/{file_path}"
 
-from google import genai
-from google.genai import types
-
 def call_gemini(prompt, system_instruction=None, json_mode=False):
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         return {"error": "Gemini API key is not configured. Please add GEMINI_API_KEY=your_key to the backend/.env file."}
     
     try:
-        client = genai.Client(api_key=api_key)
-        config = types.GenerateContentConfig(
-            temperature=0.0
-        )
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.0}
+        }
         if system_instruction:
-            config.system_instruction = system_instruction
+            payload["system_instruction"] = {"parts": [{"text": system_instruction}]}
         if json_mode:
-            config.response_mime_type = "application/json"
+            payload["generationConfig"]["responseMimeType"] = "application/json"
             
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=config
-        )
-        return {"text": response.text}
+        res = requests.post(url, json=payload)
+        if res.status_code == 200:
+            data = res.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            return {"text": text}
+
+        raise Exception(f"{res.status_code} - {res.text}")
     except Exception as e:
         import traceback
         traceback.print_exc()

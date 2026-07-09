@@ -88,7 +88,7 @@ export default function ApplicationsList() {
   const [actionLoading, setActionLoading] = useState({});
 
   const API_BASE = (import.meta.env.VITE_API_URL || '/api');
-  const SERVER_HOST = 'http://localhost:5000'; // For file serving
+  const SERVER_HOST = 'http://127.0.0.1:5000'; // For file serving
 
   const loadApplications = async () => {
     setLoading(true);
@@ -380,7 +380,7 @@ export default function ApplicationsList() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Filter size={16} style={{ color: 'var(--text-secondary)' }} />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="form-select" style={{ padding: '8px 12px', fontSize: '13px' }}>
-              <option value="">All Statuses</option>
+              <option value="">All Status</option>
               <option value="Pending">Pending</option>
               <option value="Under Verification">Under Verification</option>
               <option value="Approved">Approved</option>

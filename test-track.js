@@ -9,25 +9,19 @@ async function trackApp(id) {
   try {
     const { data: appData, error: appError } = await supabase
       .from('applications')
-      .select(`
-        full_name,
-        status,
-        assigned_student_id,
-        created_at,
-        department:departments(name, code)
-      `)
-      .eq('id', id)
+      .select('*')
+      .eq('id', 'APP-2026-3200')
       .single();
 
     if (appError) {
-      console.log('App Error:', appError);
+      console.log('Error:', appError);
       return;
     }
-    
+
     console.log('App Data:', appData);
   } catch (err) {
-    console.log('Catch Block Error:', err);
+    console.log('Error:', err);
   }
 }
 
-trackApp('APP-2026-5500');
+trackApp('');

@@ -2,7 +2,16 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(override=True)
+# 1. Load from root .env first
+root_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+if os.path.exists(root_env_path):
+    load_dotenv(root_env_path, override=True)
+
+# 2. Load from backend/.env second (so backend-specific variables override root/system variables)
+backend_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+if os.path.exists(backend_env_path):
+    load_dotenv(backend_env_path, override=True)
+
 
 class Config:
     SECRET_KEY = os.getenv("JWT_SECRET", "tmec_fallback_session_secret_key_987654")
