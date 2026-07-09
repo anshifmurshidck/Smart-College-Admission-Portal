@@ -2,9 +2,9 @@ from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
-from backend.db import db
-from backend.config import Config
-from backend.middlewares.auth import token_required
+from api.backend.db import db
+from api.backend.config import Config
+from api.backend.middlewares.auth import token_required
 
 auth_bp = Blueprint('auth', __name__)
 

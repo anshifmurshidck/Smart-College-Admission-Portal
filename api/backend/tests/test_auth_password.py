@@ -1,5 +1,5 @@
-from backend.routes.auth import verify_admin_password
-from backend.config import Config
+from api.backend.routes.auth import verify_admin_password
+from api.backend.config import Config
 
 
 def test_verify_admin_password_accepts_configured_password(monkeypatch):

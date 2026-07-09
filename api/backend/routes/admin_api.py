@@ -3,8 +3,8 @@ import random
 import csv
 from io import StringIO
 from flask import Blueprint, request, jsonify, make_response
-from backend.db import db
-from backend.middlewares.auth import token_required
+from api.backend.db import db
+from api.backend.middlewares.auth import token_required
 
 admin_api_bp = Blueprint('admin_api', __name__)
 

@@ -2,8 +2,8 @@ import os
 import datetime
 from io import BytesIO
 from flask import Blueprint, request, send_file, jsonify, make_response
-from backend.db import db
-from backend.middlewares.auth import token_required
+from api.backend.db import db
+from api.backend.middlewares.auth import token_required
 
 # ReportLab libraries for PDF creation
 from reportlab.lib.pagesizes import letter

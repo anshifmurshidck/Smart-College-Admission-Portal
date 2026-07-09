@@ -1,1 +1,16 @@
-{"projectId":"prj_nIHec9lXiDA99jyOAIkfFhya2uG3","orgId":"team_idvro5GZHsPZqopvqOjs3g7u","projectName":"smart-college-admission-portal"}
+{
+  "projectId": "prj_nIHec9lXiDA99jyOAIkfFhya2uG3",
+  "orgId": "team_idvro5GZHsPZqopvqOjs3g7u",
+  "projectName": "smart-college-admission-portal",
+  "settings": {
+    "createdAt": 1783600965200,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

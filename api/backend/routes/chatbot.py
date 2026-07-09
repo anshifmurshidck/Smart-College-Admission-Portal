@@ -3,8 +3,8 @@ import re
 import json
 from flask import Blueprint, request, jsonify
 import requests
-from backend.db import db
-from backend.middlewares.auth import token_required
+from api.backend.db import db
+from api.backend.middlewares.auth import token_required
 
 chatbot_bp = Blueprint('chatbot', __name__)
 

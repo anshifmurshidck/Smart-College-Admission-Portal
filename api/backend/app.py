@@ -1,19 +1,19 @@
 import os
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
-from backend.config import Config
+from api.backend.config import Config
 
 # Import blueprints
-from backend.routes.auth import auth_bp
-from backend.routes.admissions import admissions_bp
-from backend.routes.admin_api import admin_api_bp
-from backend.routes.departments import departments_bp
-from backend.routes.reports import reports_bp
-from backend.routes.chatbot import chatbot_bp
-from backend.routes.ocr_verification import ocr_bp
+from api.backend.routes.auth import auth_bp
+from api.backend.routes.admissions import admissions_bp
+from api.backend.routes.admin_api import admin_api_bp
+from api.backend.routes.departments import departments_bp
+from api.backend.routes.reports import reports_bp
+from api.backend.routes.chatbot import chatbot_bp
+from api.backend.routes.ocr_verification import ocr_bp
 
 # Initialize DB Manager to trigger schema check / setup on boot
-from backend.db import db
+from api.backend.db import db
 
 def create_app():
     app = Flask(__name__)

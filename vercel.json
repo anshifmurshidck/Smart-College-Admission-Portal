@@ -1,9 +1,5 @@
 {
-  "functions": {
-    "api/**/*.py": {
-      "includeFiles": "backend/**"
-    }
-  },
+  "name": "smart-college-admission-portal",
   "rewrites": [
     {
       "source": "/api/(.*)",

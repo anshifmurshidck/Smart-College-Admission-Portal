@@ -12,9 +12,9 @@ from difflib import SequenceMatcher
 from io import BytesIO
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
-from backend.db import db
-from backend.config import Config
-from backend.ocr_utils import extract_text, configure_tesseract
+from api.backend.db import db
+from api.backend.config import Config
+from api.backend.ocr_utils import extract_text, configure_tesseract
 
 admissions_bp = Blueprint('admissions', __name__)
 

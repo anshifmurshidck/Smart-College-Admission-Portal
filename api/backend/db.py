@@ -1,7 +1,7 @@
 import os
 import pymysql
 import sqlite3
-from backend.config import Config
+from api.backend.config import Config
 
 class DatabaseManager:
     def __init__(self):
