@@ -35,7 +35,10 @@ class Config:
     else:
         SQLITE_PATH = os.path.join(os.path.dirname(__file__), "tmec_portal.db")
     
-    # Upload Settings
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), os.getenv("UPLOAD_FOLDER", "uploads"))
+    if os.getenv("VERCEL"):
+        UPLOAD_FOLDER = "/tmp/uploads"
+    else:
+        UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), os.getenv("UPLOAD_FOLDER", "uploads"))
+    
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload size
     ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
