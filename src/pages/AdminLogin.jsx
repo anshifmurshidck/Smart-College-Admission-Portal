@@ -184,9 +184,6 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: 'var(--text-muted)' }}>
-          * Default credentials: <strong>admin</strong> / <strong>admin123</strong>
-        </div>
       </div>
 
       {/* Forgot Password Modal */}

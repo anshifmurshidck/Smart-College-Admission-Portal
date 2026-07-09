@@ -16,6 +16,10 @@ if os.path.exists(backend_env_path):
 class Config:
     SECRET_KEY = os.getenv("JWT_SECRET", "tmec_fallback_session_secret_key_987654")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET", "tmec_secret_key_2026_jwt_auth_premium_app")
+
+    # Admin Credentials
+    ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
     
     # Database Settings
     MYSQL_HOST = os.getenv("DB_HOST", "localhost")

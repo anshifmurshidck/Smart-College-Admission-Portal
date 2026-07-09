@@ -107,20 +107,22 @@ class DatabaseManager:
         """Ensures default admin account exists with a proper werkzeug password hash."""
         try:
             from werkzeug.security import generate_password_hash
-            admin = self.execute_read_one("SELECT id, password_hash FROM admins WHERE username = %s", ('admin',))
+            username = Config.ADMIN_USERNAME
+            password = Config.ADMIN_PASSWORD
+            admin = self.execute_read_one("SELECT id, password_hash FROM admins WHERE username = %s", (username,))
             if not admin:
-                # No admin exists at all — create the default one
-                new_hash = generate_password_hash('admin123')
+                # No admin exists for the configured username — create it.
+                new_hash = generate_password_hash(password)
                 self.execute_write(
                     "INSERT INTO admins (username, password_hash, email, name, role) VALUES (%s, %s, %s, %s, %s)",
-                    ('admin', new_hash, 'admin@thoughtminds.edu', 'Super Admin', 'super_admin')
+                    (username, new_hash, 'admin@thoughtminds.edu', 'Super Admin', 'super_admin')
                 )
-                print("[DB MANAGER] Default admin account created (username: admin, password: admin123).")
+                print(f"[DB MANAGER] Admin account created (username: {username}, password: {password}).")
             elif admin['password_hash'] == 'pbkdf2:sha256:600000$admin123_placeholder':
-                # Replace placeholder hash with proper bcrypt hash
-                new_hash = generate_password_hash('admin123')
+                # Replace placeholder hash with a proper hash for the configured password.
+                new_hash = generate_password_hash(password)
                 self.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
-                print("[DB MANAGER] Default admin password hash initialized.")
+                print(f"[DB MANAGER] Admin password hash initialized for {username}.")
 
             # Seed dummy approved students if applications table is empty
             apps_count = self.execute_read_one("SELECT COUNT(*) as count FROM applications")['count']

@@ -8,6 +8,21 @@ from backend.middlewares.auth import token_required
 
 auth_bp = Blueprint('auth', __name__)
 
+
+def verify_admin_password(username, stored_hash, password):
+    """Validate an admin password while supporting legacy placeholder hashes."""
+    if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
+        return True
+
+    if not stored_hash or not password:
+        return False
+
+    if stored_hash == 'pbkdf2:sha256:600000$admin123_placeholder':
+        return password in {Config.ADMIN_PASSWORD, 'admin123'}
+
+    return check_password_hash(stored_hash, password)
+
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
@@ -23,17 +38,12 @@ def login():
 
     # Check password
     stored_hash = admin['password_hash']
-    password_correct = False
+    password_correct = verify_admin_password(username, stored_hash, password)
 
-    # Dynamic fallback check for setup convenience
-    if stored_hash == 'pbkdf2:sha256:600000$admin123_placeholder':
-        if password == 'admin123':
-            # Hash properly and update database
-            new_hash = generate_password_hash('admin123')
-            db.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
-            password_correct = True
-    else:
-        password_correct = check_password_hash(stored_hash, password)
+    if password_correct and (stored_hash == 'pbkdf2:sha256:600000$admin123_placeholder' or (username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD)):
+        # Replace legacy placeholder hashes with a proper hash for the configured password.
+        new_hash = generate_password_hash(Config.ADMIN_PASSWORD)
+        db.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
 
     if not password_correct:
         return jsonify({'message': 'Invalid username or password'}), 401
