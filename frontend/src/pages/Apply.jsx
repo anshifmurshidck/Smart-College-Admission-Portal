@@ -151,7 +151,7 @@ export default function Apply() {
   });
 
   const [errorMsg, setErrorMsg] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingState, setSubmittingState] = useState(''); // '' means not submitting
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [applicationId, setApplicationId] = useState('');
   const [ocrResult, setOcrResult] = useState(null);
@@ -501,7 +501,7 @@ export default function Apply() {
 
     setFieldErrors({});
     setErrorMsg('');
-    setSubmitting(true);
+    setSubmittingState('Optimizing Images...');
 
     const submitApplication = async () => {
       try {
@@ -533,6 +533,8 @@ export default function Apply() {
           ocrFormData.append('marksheet12', comp12);
           ocrFormData.append('idProof', compId);
 
+          setSubmittingState('AI verifying documents... (takes ~5-8s)');
+
           const ocrResponse = await axios.post(`${API_BASE}/admissions/verify-ocr`, ocrFormData, {
             headers: {
               'Content-Type': 'multipart/form-data'
@@ -558,6 +560,8 @@ export default function Apply() {
         const assignedStudentId = null;
         const ocrStatus = verified ? 'Verified' : 'Flagged';
         const ocrDetailsJson = JSON.stringify(ocrDetails);
+
+        setSubmittingState('Saving Application Data...');
 
         // Helper function for uploading to Supabase Storage
         const uploadFile = async (file, type) => {
@@ -659,7 +663,7 @@ export default function Apply() {
         setErrorMsg(err.message || 'Error submitting application to Supabase.');
         window.scrollTo({ top: 150, behavior: 'smooth' });
       } finally {
-        setSubmitting(false);
+        setSubmittingState('');
       }
     };
 
@@ -1283,37 +1287,42 @@ export default function Apply() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="btn-ripple btn-primary"
-            disabled={submitting}
-            style={{
-              padding: '16px 30px',
-              fontSize: '16px',
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '10px',
-              opacity: submitting ? 0.7 : 1,
-              cursor: submitting ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitting ? (
-              <>
-                <div
-                  style={{
-                    width: '20px', height: '20px',
-                    borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: '#ffffff',
-                    animation: 'pulse-glow 1s linear infinite',
-                  }}
-                />
-                Submitting Application...
-              </>
-            ) : (
-              'Submit Admission Form'
-            )}
-          </button>
+          <div style={{ marginTop: '30px' }}>
+            <button
+              type="submit"
+              disabled={!!submittingState}
+              className="btn-ripple btn-primary"
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                opacity: submittingState ? 0.7 : 1,
+                cursor: submittingState ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {submittingState ? (
+                <>
+                  <div
+                    style={{
+                      width: '20px', height: '20px',
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTopColor: '#ffffff',
+                      animation: 'pulse-glow 1s linear infinite',
+                    }}
+                  />
+                  {submittingState}
+                </>
+              ) : (
+                'Submit Application & Run AI Verification'
+              )}
+            </button>
+          </div>
         </form>
       </div>
 
