@@ -431,25 +431,16 @@ def verify_ocr():
         except Exception:
             is_tesseract_installed = False
 
-        # Fallback simulation if OCR returned no text (e.g. no tesseract binary on host)
-        # We can simulate matching logic by inspecting file names for test keywords: 'fail', 'mismatch', 'incorrect', etc.
-        use_simulation = not is_tesseract_installed and not m10_text and not m12_text and not id_text
+        # If OCR completely fails (e.g., Gemini API rate limit or error)
+        ocr_failed = not m10_text and not m12_text and not id_text
         
-        if use_simulation:
-            print("[OCR SYSTEM] Tesseract binary not found. Running matching simulation based on filenames.")
-            filenames_str = (marksheet10.filename + marksheet12.filename + id_proof.filename).lower()
-            
-            if any(k in filenames_str for k in ['fail', 'mismatch', 'incorrect', 'reject']):
-                details['name_matched'] = False
-                details['aadhaar_matched'] = False
-                details['tenth_matched'] = False
-                details['twelfth_matched'] = False
-            else:
-                # Default to success in simulation mode so demo works seamlessly
-                details['name_matched'] = True
-                details['aadhaar_matched'] = True
-                details['tenth_matched'] = True
-                details['twelfth_matched'] = True
+        if ocr_failed:
+            print("[OCR SYSTEM] OCR extraction failed or returned empty for all documents.")
+            details['error'] = True
+            details['name_matched'] = False
+            details['aadhaar_matched'] = False
+            details['tenth_matched'] = False
+            details['twelfth_matched'] = False
         else:
             # 1. ID Proof checks
             if id_text.strip():
@@ -462,13 +453,8 @@ def verify_ocr():
                 details['name_matched'] = name_match
                 details['aadhaar_matched'] = aadhaar_match
             else:
-                if not is_tesseract_installed:
-                    sim_fail = any(k in id_proof.filename.lower() for k in ['fail', 'mismatch', 'incorrect', 'reject'])
-                    details['name_matched'] = not sim_fail
-                    details['aadhaar_matched'] = not sim_fail
-                else:
-                    details['name_matched'] = False
-                    details['aadhaar_matched'] = False
+                details['name_matched'] = False
+                details['aadhaar_matched'] = False
 
             # 2. 10th Marksheet checks
             if m10_text.strip():
@@ -480,11 +466,7 @@ def verify_ocr():
 
                 details['tenth_matched'] = tenth_marks_match or tenth_pct_match
             else:
-                if not is_tesseract_installed:
-                    sim_fail = any(k in marksheet10.filename.lower() for k in ['fail', 'mismatch', 'incorrect', 'reject'])
-                    details['tenth_matched'] = not sim_fail
-                else:
-                    details['tenth_matched'] = False
+                details['tenth_matched'] = False
 
             # 3. 12th Marksheet checks
             if m12_text.strip():
@@ -496,17 +478,17 @@ def verify_ocr():
 
                 details['twelfth_matched'] = twelfth_marks_match or twelfth_pct_match
             else:
-                if not is_tesseract_installed:
-                    sim_fail = any(k in marksheet12.filename.lower() for k in ['fail', 'mismatch', 'incorrect', 'reject'])
-                    details['twelfth_matched'] = not sim_fail
-                else:
-                    details['twelfth_matched'] = False
+                details['twelfth_matched'] = False
 
-        verified = all(details.values())
+        verified = (
+            details.get('name_matched') and
+            details.get('aadhaar_matched') and
+            details.get('tenth_matched') and
+            details.get('twelfth_matched') and
+            not details.get('error', False)
+        )
 
-        message = "OCR verification successful. All documents matched." if verified else "OCR verification flagged. Mismatch in documents."
-        if use_simulation and not verified:
-            message = "OCR verification simulation flagged mismatch based on file names."
+        message = "OCR verification successful. All documents matched." if verified else "OCR verification flagged. Mismatch or error in documents."
 
         print("===== FINAL DETAILS =====")
         print(details)
