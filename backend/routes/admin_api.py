@@ -12,12 +12,22 @@ admin_api_bp = Blueprint('admin_api', __name__)
 @token_required()
 def get_dashboard_stats(current_user):
     try:
-        # 1. Card stats
-        total = db.execute_read_one("SELECT COUNT(*) as count FROM applications")['count']
-        approved = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Approved'")['count']
-        rejected = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Rejected'")['count']
-        pending = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE status = 'Pending' OR status = 'Under Verification'")['count']
-        flagged = db.execute_read_one("SELECT COUNT(*) as count FROM applications WHERE ocr_status = 'Flagged'")['count']
+        # 1. Card stats (Optimized into a single query to prevent multiple DB connections)
+        stats = db.execute_read_one("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN status = 'Rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN status IN ('Pending', 'Under Verification') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN ocr_status = 'Flagged' THEN 1 ELSE 0 END) as flagged
+            FROM applications
+        """)
+        
+        total = int(stats['total'] or 0)
+        approved = int(stats['approved'] or 0)
+        rejected = int(stats['rejected'] or 0)
+        pending = int(stats['pending'] or 0)
+        flagged = int(stats['flagged'] or 0)
 
         # 2. Department-wise applications
         dept_stats = db.execute_read(
