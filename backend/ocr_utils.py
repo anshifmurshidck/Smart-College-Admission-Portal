@@ -1,6 +1,11 @@
 import os
 import base64
 import requests
+from io import BytesIO
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 def extract_text(file_path):
     """Extract text from image or PDF files using Gemini Vision API instead of Tesseract."""
@@ -23,8 +28,25 @@ def extract_text(file_path):
             print(f"[OCR] Unsupported file format: {file_ext}")
             return None
 
-        with open(file_path, "rb") as f:
-            file_data = base64.b64encode(f.read()).decode('utf-8')
+        if file_ext in ['.jpg', '.jpeg', '.png', '.webp'] and Image is not None:
+            with Image.open(file_path) as img:
+                # Convert to RGB if needed
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Resize if too large to save network upload time
+                max_size = 1200
+                if img.width > max_size or img.height > max_size:
+                    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                
+                # Save to buffer
+                buffer = BytesIO()
+                img.save(buffer, format="JPEG", quality=85)
+                file_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                mime_type = "image/jpeg"
+        else:
+            with open(file_path, "rb") as f:
+                file_data = base64.b64encode(f.read()).decode('utf-8')
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
@@ -32,7 +54,7 @@ def extract_text(file_path):
             "contents": [
                 {
                     "parts": [
-                        {"text": "Extract all the text from this document exactly as written. If it contains academic subjects and their marks, output them clearly in a structured format (e.g. 'Mathematics: 90')."},
+                        {"text": "Extract all the text from this document exactly as written with 100% accuracy. Pay special attention to names, Aadhaar numbers, and academic marks. If it contains academic subjects and their marks, output them clearly in a structured format with the maximum marks and obtained marks (e.g. 'Mathematics: 90 / 100'). Ensure percentages and totals are captured precisely."},
                         {
                             "inlineData": {
                                 "mimeType": mime_type,
@@ -45,7 +67,7 @@ def extract_text(file_path):
             "generationConfig": {"temperature": 0.0}
         }
 
-        res = requests.post(url, json=payload)
+        res = requests.post(url, json=payload, timeout=15)
         
         if res.status_code == 200:
             data = res.json()
