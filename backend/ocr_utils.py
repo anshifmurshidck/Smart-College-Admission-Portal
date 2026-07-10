@@ -1,6 +1,11 @@
 import os
 import base64
 import requests
+from io import BytesIO
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 def extract_text(file_path):
     """Extract text from image or PDF files using Gemini Vision API instead of Tesseract."""
@@ -23,8 +28,25 @@ def extract_text(file_path):
             print(f"[OCR] Unsupported file format: {file_ext}")
             return None
 
-        with open(file_path, "rb") as f:
-            file_data = base64.b64encode(f.read()).decode('utf-8')
+        if file_ext in ['.jpg', '.jpeg', '.png', '.webp'] and Image is not None:
+            with Image.open(file_path) as img:
+                # Convert to RGB if needed
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Resize if too large to save network upload time
+                max_size = 1200
+                if img.width > max_size or img.height > max_size:
+                    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                
+                # Save to buffer
+                buffer = BytesIO()
+                img.save(buffer, format="JPEG", quality=85)
+                file_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                mime_type = "image/jpeg"
+        else:
+            with open(file_path, "rb") as f:
+                file_data = base64.b64encode(f.read()).decode('utf-8')
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
