@@ -1,247 +1,278 @@
 # Smart College Admission Portal (TMEC)
 
-![Smart College Admission Portal](https://img.shields.io/badge/Status-Active-success.svg) ![License](https://img.shields.io/badge/License-MIT-blue.svg) ![React](https://img.shields.io/badge/Frontend-React.js-61DAFB.svg?logo=react) ![Python](https://img.shields.io/badge/Backend-Flask-3776AB.svg?logo=python)
+![Status](https://img.shields.io/badge/Status-Active-success.svg) ![License](https://img.shields.io/badge/License-MIT-blue.svg) ![React](https://img.shields.io/badge/Frontend-React.js-61DAFB.svg?logo=react) ![Python](https://img.shields.io/badge/Backend-Flask-3776AB.svg?logo=python)
 
-The **Smart College Admission Portal** (Thought Minds Engineering College - TMEC) is a comprehensive, full-stack web application designed to streamline the college admission process. It provides an intuitive, highly responsive interface for students to submit applications and a secure, powerful dashboard for administrators to manage, track, and analyze those applications.
-
-The platform includes modern UX principles, seamless animations, local/cloud database synchronization, and an AI-powered Database Assistant (via Google Gemini) for administrators.
+A full-stack web application for Thought Minds Engineering College (TMEC) that streamlines the college admission process. Students submit applications online; administrators manage, review, and analyse them from a secure dashboard with an AI-powered assistant.
 
 ---
 
-## 🌟 Key Features
+## Features
 
-### 🎓 For Students
-- **Digital Application Submission**: Securely apply to various engineering departments (CSE, AIML, ECE, ME, CE).
-- **Document Uploads**: Directly upload necessary admission documents (10th/12th mark sheets, Aadhaar, ID proofs) with progress tracking.
-- **Real-Time Status Tracking**: Check application status (Pending, Under Review, Approved, Rejected) and read reviewer comments using an Application ID and Date of Birth.
-- **Interactive UI**: Fluid animations using Framer Motion, micro-interactions, and a premium "Glassmorphism" dark aesthetic.
+### For Students
+- **Online Application** — Apply to CSE, AIML, ECE, ME, or CE departments in one digital form.
+- **Document Uploads** — Upload 10th/12th marksheets, Aadhaar, and ID proof directly from the browser.
+- **Status Tracking** — Check application status (Pending → Under Review → Approved / Rejected) with an Application ID.
+- **AI Chatbot** — Floating assistant answers admission questions and tracks applications in real time.
 
-### 🛡️ For Administrators
-- **Comprehensive Dashboard**: View application pipelines, recent activities, and high-level college metrics (enrollment rates, average academic scores).
-- **Application Review System**: Approve or reject applications, leave feedback for students, and automatically generate Student IDs upon approval.
-- **Student Database**: A unified view of all enrolled students, with filtering, searching, and pagination capabilities.
-- **AI-Powered Database Chatbot**: Integrated AI assistant that parses natural language queries (e.g., *"How many students in CSE?"* or *"Show details for vasu@gmail.com"*) using the Gemini API to instantly query the local database.
-- **CSV Reports Generation**: Export student and application data directly to CSV for external processing.
-
----
-
-## 🛠️ Technology Stack
-
-**Frontend:**
-- [React.js 19](https://react.dev/) & [Vite 8](https://vitejs.dev/) - Lightning fast development and optimized production builds.
-- [React Router v7](https://reactrouter.com/) - Application routing.
-- [Framer Motion](https://www.framer.com/motion/) - Smooth page transitions and element animations.
-- [Lucide React](https://lucide.dev/) - Modern iconography.
-- [Axios](https://axios-http.com/) - API requests.
-
-**Backend:**
-- [Python 3.8+](https://www.python.org/) & [Flask](https://flask.palletsprojects.com/) - Lightweight and scalable REST API.
-- [MySQL](https://www.mysql.com/) / SQLite - Primary database engine with an automatic fallback to SQLite for immediate local development.
-- [Google Gemini API](https://deepmind.google/technologies/gemini/) - Powers the intelligent administrative chatbot.
-
-**Cloud/Storage:**
-- [Supabase](https://supabase.com/) - Cloud sync and secure file object storage.
-
-**Deployment:**
-- [Vercel](https://vercel.com/) - Hosts the React frontend.
-- [Render](https://render.com/) - Hosts the Flask backend (via `gunicorn`).
+### For Administrators
+- **Dashboard** — Application pipeline, enrollment rates, and academic score metrics.
+- **Review System** — Approve / reject applications, add reviewer comments, and auto-generate Student IDs.
+- **Student Database** — Search, filter, edit, and paginate through all enrolled students.
+- **AI Database Assistant** — Natural-language queries over the student database powered by Google Gemini.
+- **Reports** — Export student and application data to CSV.
 
 ---
 
-## 📁 Project Structure
+## Technology Stack
 
-```text
+| Layer | Technology |
+| :--- | :--- |
+| Frontend | React 19, Vite 8, React Router v7, Framer Motion, Axios |
+| Backend | Python 3.9+, Flask, Werkzeug, PyJWT |
+| Database | MySQL (primary) with automatic SQLite fallback for local dev |
+| Cloud / Storage | Supabase (application data + file storage) |
+| AI | Google Gemini 2.5 Flash API |
+| Deployment | Vercel (frontend) + Render (backend) |
+
+---
+
+## Project Structure
+
+```
 Smart-College-Admission-Portal/
-├── frontend/                 # React + Vite application (deploys to Vercel)
+├── frontend/                  # React + Vite (deploys to Vercel)
 │   ├── src/
-│   │   ├── components/       # Reusable UI components (Navbar, Chatbot, Modals)
-│   │   ├── layouts/          # Page layouts (Public Layout, Admin Layout)
-│   │   ├── pages/            # Route views (Home, Apply, AdminDashboard, etc.)
-│   │   ├── lib/              # External clients (Supabase client config)
-│   │   ├── main.jsx          # React entry point
-│   │   └── index.css         # Global design tokens and Glassmorphism CSS styles
-│   ├── public/               # Static assets (Logos, icons)
-│   ├── tests/                # Standalone JS test/debug scripts
-│   ├── package.json          # NPM scripts and dependencies
-│   ├── vite.config.js        # Vite bundler and dev proxy configuration
-│   ├── vercel.json           # SPA rewrite config for Vercel
-│   └── .env                  # Frontend env (VITE_SUPABASE_*, VITE_API_URL)
-├── backend/                  # Flask REST API (deploys to Render)
-│   ├── routes/               # API endpoint modules (auth, admissions, chatbot, admin)
-│   ├── middlewares/          # JWT auth decorator
-│   ├── tests/                # Python test/debug scripts
-│   ├── db.py                 # Database manager (MySQL/SQLite fallback logic)
-│   ├── config.py             # Configuration + env loading
-│   ├── app.py                # Flask application factory (exposes `app`)
-│   ├── run.py                # Local dev runner (python run.py)
-│   ├── requirements.txt      # Python dependencies (incl. gunicorn)
-│   └── .env                  # Backend environment variables
-└── render.yaml               # Render deployment config for the backend
+│   │   ├── components/        # Navbar, Chatbot drawer, modals
+│   │   ├── layouts/           # PublicLayout, AdminLayout
+│   │   ├── lib/               # Supabase client, adminFetch helper
+│   │   └── pages/             # Home, Apply, Track, AdminDashboard, etc.
+│   ├── public/                # Static assets
+│   ├── package.json
+│   ├── vite.config.js         # Dev proxy: /api → localhost:5001
+│   └── vercel.json            # SPA rewrite for Vercel
+│
+├── backend/                   # Flask REST API (deploys to Render)
+│   ├── routes/                # auth, admissions, admin_api, chatbot, reports
+│   ├── middlewares/           # JWT auth decorator
+│   ├── app.py                 # Flask application factory
+│   ├── run.py                 # Local dev entry point
+│   ├── config.py              # Config + env loading
+│   ├── db.py                  # MySQL / SQLite database manager
+│   ├── requirements.txt       # Python dependencies (includes gunicorn)
+│   └── .env.example           # Template for backend environment variables
+│
+├── render.yaml                # Render deployment config
+└── DEPLOYMENT.md              # Full Vercel + Render deployment guide
 ```
 
 ---
 
-## 🚀 Getting Started
+## Local Setup
 
-Follow these instructions to set up the project locally.
+### Prerequisites
 
-### 1. Prerequisites
-- **Node.js** (v18 or higher)
-- **Python** (v3.8 or higher). On macOS/Linux the command is usually `python3`.
-- *(Optional)* MySQL Server if you prefer not to use the SQLite fallback.
+| Tool | macOS / Linux | Windows |
+| :--- | :--- | :--- |
+| Node.js | v18 or higher | v18 or higher |
+| Python | `python3` (v3.9+) | `python` (v3.9+) from python.org |
+| Git | `git` | Git for Windows |
 
-### 2. Installation
+> MySQL is optional. The backend automatically falls back to SQLite if MySQL is not running.
 
-Clone the repository to your local machine:
+---
+
+### Step 1 — Clone the repository
+
 ```bash
 git clone https://github.com/your-username/Smart-College-Admission-Portal.git
 cd Smart-College-Admission-Portal
 ```
 
-Install frontend dependencies:
+---
+
+### Step 2 — Set up the backend (Python)
+
+#### macOS / Linux
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### Windows (Command Prompt or PowerShell)
+
+```bat
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+---
+
+### Step 3 — Set up the frontend (Node)
+
 ```bash
 cd frontend
 npm install
 ```
 
-Set up the Python backend environment (from a **separate** shell, or before starting the frontend):
-```bash
-cd backend
+---
 
-# Create a virtual environment
-# macOS/Linux:
-python3 -m venv venv
-# Windows:
-python -m venv venv
+### Step 4 — Environment variables
 
-# Activate the virtual environment
-# macOS/Linux:
-source venv/bin/activate
-# Windows:
-venv\Scripts\activate
+**Frontend — `frontend/.env`** (already present in the repo with Supabase keys):
 
-# Install requirements
-pip install -r requirements.txt
-```
-
-> The frontend's `npm run dev` launches the backend using `backend/venv`, so this
-> virtual environment must exist and have the dependencies installed first.
-
-### 3. Environment Variables
-
-You need to configure both the frontend and backend environment variables.
-
-**Frontend (`frontend/.env`):**
 ```env
-VITE_SUPABASE_URL=https://your-project-url.supabase.co
+VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-# Optional: point the frontend at a remote backend (e.g. Render). Leave unset
-# locally to use the Vite dev proxy to http://127.0.0.1:5001.
-# VITE_API_URL=https://your-backend.onrender.com/api
+# Leave VITE_API_URL unset locally — Vite proxies /api to localhost:5001
 ```
 
-**Backend (`backend/.env`):** copy `backend/.env.example` and fill in values. All keys have sensible defaults, so this file is optional for a first local run.
+**Backend — `backend/.env`** (create by copying `.env.example`):
+
+```bash
+# macOS / Linux
+cp backend/.env.example backend/.env
+
+# Windows
+copy backend\.env.example backend\.env
+```
+
+Then open `backend/.env` and set at minimum:
+
 ```env
-JWT_SECRET=your_secure_jwt_secret
+JWT_SECRET=any_long_random_string
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=tmec_admission
-UPLOAD_FOLDER=uploads
 PORT=5001
 FALLBACK_SQLITE=true
-GEMINI_API_KEY=your_gemini_api_key  # Required for the AI Chatbot feature
+GEMINI_API_KEY=           # leave blank to use local keyword fallback
 ```
 
-### 4. Running the Application
+> All values have working defaults, so the app runs without a `.env` for a first test.
 
-**One command runs the whole stack.** The `frontend` uses `concurrently` to launch both
-the Vite dev server and the Flask backend (from `../backend`) in a single terminal:
+---
+
+### Step 5 — Run the application
+
+The backend **must be set up first** (Step 2) before running. The dev command launches both the Flask API and the Vite dev server together.
+
+#### macOS / Linux — one terminal
+
 ```bash
 cd frontend
 npm run dev
 ```
 
-- `[web]` **Vite Frontend** → `http://localhost:5173`
-- `[api]` **Flask Backend** → `http://localhost:5001` (port 5000 is reserved by macOS AirPlay Receiver). API requests are proxied from the frontend to the backend during development.
-- `Ctrl+C` stops both processes.
+#### Windows — one terminal (Command Prompt or PowerShell)
 
-**Default admin login:** username `admin`, password `admin123` (override via `backend/.env`).
+```bat
+cd frontend
+npm run dev:win
+```
 
-> The backend runs with the Flask auto-reloader disabled, so after changing backend
-> Python code, restart with `Ctrl+C` then `npm run dev` again.
+> `npm run dev` uses `sh` which is not available on Windows. Use `npm run dev:win` instead.
 
-Prefer separate terminals? That works too (useful for restarting one side independently):
+#### Any OS — two separate terminals (alternative)
+
+If the single-command approach has any issues, use two terminals:
+
 ```bash
-# Terminal 1 - backend
-cd backend && source venv/bin/activate && python run.py
+# Terminal 1 — Backend
+cd backend
 
-# Terminal 2 - frontend
-cd frontend && npm run dev
+# macOS / Linux:
+source venv/bin/activate && python run.py
+
+# Windows:
+venv\Scripts\activate
+python run.py
+```
+
+```bash
+# Terminal 2 — Frontend
+cd frontend
+npm run dev      # macOS/Linux
+# or
+npm run dev:win  # Windows (only runs Vite — backend already started in Terminal 1)
 ```
 
 ---
 
-## 🔌 API Reference (Selected Endpoints)
+### What you should see
 
-| Method | Endpoint | Description |
+| Service | URL | Notes |
 | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Authenticates an admin and returns a JWT token. |
-| `GET`  | `/api/departments` | Lists available engineering departments. |
-| `POST` | `/api/admissions/apply` | Submits a new student application. |
-| `POST` | `/api/admissions/verify-ocr` | Runs OCR verification on an uploaded mark sheet. |
-| `GET`  | `/api/admissions/track/<app_id>` | Retrieves an application's status by Application ID. |
-| `GET`  | `/api/admin/dashboard-stats` | Dashboard metrics and pipeline stats (Protected). |
-| `GET`  | `/api/admin/applications` | Retrieves a filtered list of applications (Protected). |
-| `POST` | `/api/admin/applications/<app_id>/status` | Approve/reject an application (Protected). |
-| `GET`  | `/api/admin/students` | Lists enrolled students with filtering (Protected). |
-| `POST` | `/api/admin/chat` | Admin AI Database Assistant, natural language querying (Protected). |
-| `POST` | `/api/chatbot/chat` | Public admissions assistant for the home page chatbot (Gemini + local fallback). |
-| `GET`  | `/api/health` | Backend health check and database status monitor. |
+| Frontend | `http://localhost:5173` | Vite dev server |
+| Backend API | `http://localhost:5001/api` | Flask |
+| Health check | `http://localhost:5001/api/health` | Verify backend is up |
+
+> **Port 5001 instead of 5000?** On macOS, Control Center (AirPlay Receiver) occupies port 5000. This project uses 5001 to avoid the conflict. You can disable AirPlay via System Settings → General → AirDrop & Handoff → AirPlay Receiver if you prefer 5000.
+
+**Default admin login:** `admin` / `admin123`  
+*(Override in `backend/.env` with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.)*
+
+> After changing any backend Python file, stop the server (`Ctrl+C`) and restart — the Flask auto-reloader is disabled to prevent double-startup.
 
 ---
 
-## 👨‍💻 Development Notes
+## API Reference
 
-- **Database Fallback:** By default, `backend/db.py` attempts to connect to a MySQL instance. If it fails (e.g., MySQL is not installed or running), it automatically falls back to an SQLite file-based database (`backend/tmec_portal.db`) for seamless local development.
-- **Authentication:** Admin routes are secured using JWT tokens passed in the `Authorization: Bearer <token>` header. The frontend manages these tokens via an Axios interceptor in `main.jsx` and LocalStorage.
-- **Password hashing:** Passwords are hashed with `pbkdf2:sha256` (Werkzeug). This is used instead of the newer `scrypt` default because `scrypt` is unavailable on Python builds linked against LibreSSL (common on macOS).
-- **API base URL:** The frontend reads `import.meta.env.VITE_API_URL` (falling back to `/api`). Locally, leave it unset and the Vite dev proxy forwards `/api` to `http://127.0.0.1:5001`. In production, set it to the deployed backend URL.
-- **File storage & data:** Student uploads and application records are written directly to **Supabase** from the frontend. The Flask backend uses its own database only for admin/JWT and server-side queries.
-
----
-
-## 🩹 Troubleshooting
-
-- **`Address already in use` / `Port 5000 is in use`** — On macOS, Control Center (AirPlay Receiver) occupies port 5000. This project uses **5001** for the backend. To free 5000 instead, disable System Settings → General → AirDrop & Handoff → AirPlay Receiver.
-- **`zsh: command not found: python`** — macOS ships `python3`, not `python`. Use `python3` to create the venv; once the venv is activated, `python` is available inside it.
-- **`AttributeError: module 'hashlib' has no attribute 'scrypt'`** — Caused by LibreSSL-linked Python. Already handled: the app hashes with `pbkdf2:sha256`.
-- **Backend code changes not taking effect** — the auto-reloader is off; restart `npm run dev` (`Ctrl+C` then re-run).
-- **Chatbot says the key isn't configured** — add `GEMINI_API_KEY` to `backend/.env` and restart.
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Public | Admin login, returns JWT. |
+| `GET` | `/api/departments` | Public | Lists engineering departments. |
+| `POST` | `/api/admissions/apply` | Public | Submit a student application. |
+| `GET` | `/api/admissions/track/<app_id>` | Public | Track application status. |
+| `POST` | `/api/chatbot/chat` | Public | Home page AI chatbot (Gemini + fallback). |
+| `GET` | `/api/admin/dashboard-stats` | JWT | Dashboard metrics. |
+| `GET` | `/api/admin/applications` | JWT | Filtered application list. |
+| `POST` | `/api/admin/applications/<id>/status` | JWT | Approve / reject application. |
+| `GET` | `/api/admin/students` | JWT | Enrolled student list. |
+| `POST` | `/api/admin/chat` | JWT | Admin AI database assistant. |
+| `GET` | `/api/health` | Public | Backend health + DB status. |
 
 ---
 
-## ☁️ Deployment
+## Development Notes
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the full step-by-step guide. Quick summary below.
+- **Database fallback** — The backend tries MySQL on startup. If it fails, it automatically switches to a local SQLite file (`backend/tmec_portal.db`). No manual setup needed for local dev.
+- **Authentication** — Admin routes require a JWT in `Authorization: Bearer <token>`. The frontend's Axios interceptor and `adminFetch` helper automatically redirect to `/admin/login` when a token expires or becomes invalid.
+- **AI chatbots** — Both the home chatbot and the admin assistant call Google Gemini when `GEMINI_API_KEY` is set. Without it, they fall back to a local keyword-based responder — the UI still works fully.
+- **Password hashing** — Uses `pbkdf2:sha256` (not `scrypt`) for compatibility with Python builds that use LibreSSL (common on macOS).
+- **Supabase** — Student uploads and application records are written to Supabase directly from the browser. The Flask backend syncs approved records into its local DB on startup for admin queries.
 
-The app is a single repo with two independently deployable services.
+---
 
-### Frontend → Vercel
-- **Root Directory:** `frontend`
-- **Build Command:** `npm run build` (output `dist/`)
-- **Environment Variable:** `VITE_API_URL=https://<your-render-service>.onrender.com/api`
-- The `frontend/vercel.json` SPA rewrite serves the React router on all paths.
+## Troubleshooting
 
-### Backend → Render
-- Uses `render.yaml` (root directory `backend`).
-- **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `gunicorn app:app --bind 0.0.0.0:$PORT`
-- Set secrets in the Render dashboard: `JWT_SECRET`, `GEMINI_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SUPABASE_URL`.
-- Render's filesystem is ephemeral. `DATA_DIR=/tmp` keeps the SQLite fallback and uploads writable, but they reset on redeploy. For persistent data, provision a managed database and set `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`. Application data and uploaded documents are stored in Supabase, so this mainly affects the backend's own tables.
+| Problem | Fix |
+| :--- | :--- |
+| `npm run dev` fails on Windows | Use `npm run dev:win` instead. |
+| `sh: command not found` on Windows | Same as above — `sh` is not available outside Git Bash. Use `npm run dev:win`. |
+| `Address already in use` (port 5001) | Another process holds port 5001. Run `netstat -ano \| findstr :5001` (Windows) or `lsof -i :5001` (Mac) to find and stop it. |
+| `zsh: command not found: python` | Use `python3` on macOS/Linux. Inside an activated venv, `python` works. |
+| `401` loop on admin pages after restart | Your stored JWT was signed with a different `JWT_SECRET`. Log out and log back in. |
+| Backend changes not taking effect | The auto-reloader is off. Restart `npm run dev` / `npm run dev:win`. |
+| Chatbot says key not configured | Add `GEMINI_API_KEY` to `backend/.env` and restart. Without it, the local fallback is used. |
+
+---
+
+## Deployment
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete step-by-step guide for Vercel (frontend) and Render (backend).
+
+**Quick summary:**
+
+| Platform | Root Dir | Build | Start |
+| :--- | :--- | :--- | :--- |
+| **Vercel** (frontend) | `frontend` | `npm run build` | — (static) |
+| **Render** (backend) | `backend` | `pip install -r requirements.txt` | `gunicorn app:app` |
+
+Set `VITE_API_URL=https://your-backend.onrender.com/api` on Vercel so the frontend reaches the Render backend.
 
 ---
 
