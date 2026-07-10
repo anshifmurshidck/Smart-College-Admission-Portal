@@ -510,6 +510,11 @@ export default function Apply() {
         const random = Math.floor(1000 + Math.random() * 9000);
         const appId = `APP-${year}-${random}`;
 
+        // 1.5 Compress images client-side to dramatically speed up upload time
+        const comp10 = await compressImage(files.marksheet10);
+        const comp12 = await compressImage(files.marksheet12);
+        const compId = await compressImage(files.idProof);
+
         // 2. Call OCR Verification API
         let verified = false;
         let ocrDetails = {};
@@ -524,10 +529,6 @@ export default function Apply() {
           ocrFormData.append('twelfthPercentage', trimmedData.twelfthPercentage);
           ocrFormData.append('twelfthTotalMarks', trimmedData.twelfthTotalMarks);
           ocrFormData.append('twelfthMaxMarks', trimmedData.twelfthMaxMarks);
-          // Compress images client-side to dramatically speed up upload time
-          const comp10 = await compressImage(files.marksheet10);
-          const comp12 = await compressImage(files.marksheet12);
-          const compId = await compressImage(files.idProof);
 
           ocrFormData.append('marksheet10', comp10);
           ocrFormData.append('marksheet12', comp12);
