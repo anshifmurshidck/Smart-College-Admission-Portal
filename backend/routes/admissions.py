@@ -17,11 +17,11 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from db import db
 from config import Config
-from ocr_utils import extract_text, configure_tesseract
+from ocr_utils import extract_text
 
 admissions_bp = Blueprint('admissions', __name__)
 
-configure_tesseract()
+
 
 def try_read_as_text(file_path):
     try:
@@ -382,10 +382,17 @@ def verify_ocr():
         id_proof.save(id_path)
 
         
-        # Extract texts using OCR
-        m10_text = extract_text(m10_path)
-        m12_text = extract_text(m12_path)
-        id_text = extract_text(id_path)
+        import concurrent.futures
+        
+        # Extract texts using OCR in parallel to reduce processing time significantly
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            future_m10 = executor.submit(extract_text, m10_path)
+            future_m12 = executor.submit(extract_text, m12_path)
+            future_id = executor.submit(extract_text, id_path)
+            
+            m10_text = future_m10.result()
+            m12_text = future_m12.result()
+            id_text = future_id.result()
         print("===== FORM VALUES =====")
         print("Name:", full_name)
         print("Aadhaar:", aadhaar_number)

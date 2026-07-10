@@ -5,6 +5,58 @@ import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
 import { supabase } from '../lib/supabase';
 
+/* ─── Client-side Image Compression ────────────────────────────────── */
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      resolve(file); // skip PDFs
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpeg", {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = () => resolve(file); // fallback
+    };
+    reader.onerror = () => resolve(file); // fallback
+  });
+};
+
 /* ─── Inline error helper ───────────────────────────────────────────── */
 const FieldError = ({ msg }) =>
   msg ? (
@@ -99,7 +151,7 @@ export default function Apply() {
   });
 
   const [errorMsg, setErrorMsg] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingState, setSubmittingState] = useState(''); // '' means not submitting
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [applicationId, setApplicationId] = useState('');
   const [ocrResult, setOcrResult] = useState(null);
@@ -449,7 +501,7 @@ export default function Apply() {
 
     setFieldErrors({});
     setErrorMsg('');
-    setSubmitting(true);
+    setSubmittingState('Optimizing Images...');
 
     const submitApplication = async () => {
       try {
@@ -472,9 +524,16 @@ export default function Apply() {
           ocrFormData.append('twelfthPercentage', trimmedData.twelfthPercentage);
           ocrFormData.append('twelfthTotalMarks', trimmedData.twelfthTotalMarks);
           ocrFormData.append('twelfthMaxMarks', trimmedData.twelfthMaxMarks);
-          ocrFormData.append('marksheet10', files.marksheet10);
-          ocrFormData.append('marksheet12', files.marksheet12);
-          ocrFormData.append('idProof', files.idProof);
+          // Compress images client-side to dramatically speed up upload time
+          const comp10 = await compressImage(files.marksheet10);
+          const comp12 = await compressImage(files.marksheet12);
+          const compId = await compressImage(files.idProof);
+
+          ocrFormData.append('marksheet10', comp10);
+          ocrFormData.append('marksheet12', comp12);
+          ocrFormData.append('idProof', compId);
+
+          setSubmittingState('AI verifying documents... (takes ~5-8s)');
 
           const ocrResponse = await axios.post(`${API_BASE}/admissions/verify-ocr`, ocrFormData, {
             headers: {
@@ -502,6 +561,8 @@ export default function Apply() {
         const ocrStatus = verified ? 'Verified' : 'Flagged';
         const ocrDetailsJson = JSON.stringify(ocrDetails);
 
+        setSubmittingState('Saving Application Data...');
+
         // Helper function for uploading to Supabase Storage
         const uploadFile = async (file, type) => {
           const fileExt = file.name.split('.').pop();
@@ -514,11 +575,11 @@ export default function Apply() {
           return data.publicUrl;
         };
 
-        // 3. Upload Documents in Parallel
+        // 3. Upload Documents in Parallel using the compressed versions
         const [marksheet10Url, marksheet12Url, idProofUrl] = await Promise.all([
-          uploadFile(files.marksheet10, 'marksheet10'),
-          uploadFile(files.marksheet12, 'marksheet12'),
-          uploadFile(files.idProof, 'idProof')
+          uploadFile(comp10, 'marksheet10'),
+          uploadFile(comp12, 'marksheet12'),
+          uploadFile(compId, 'idProof')
         ]);
 
         const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
@@ -602,7 +663,7 @@ export default function Apply() {
         setErrorMsg(err.message || 'Error submitting application to Supabase.');
         window.scrollTo({ top: 150, behavior: 'smooth' });
       } finally {
-        setSubmitting(false);
+        setSubmittingState('');
       }
     };
 
@@ -1226,37 +1287,42 @@ export default function Apply() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="btn-ripple btn-primary"
-            disabled={submitting}
-            style={{
-              padding: '16px 30px',
-              fontSize: '16px',
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '10px',
-              opacity: submitting ? 0.7 : 1,
-              cursor: submitting ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitting ? (
-              <>
-                <div
-                  style={{
-                    width: '20px', height: '20px',
-                    borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: '#ffffff',
-                    animation: 'pulse-glow 1s linear infinite',
-                  }}
-                />
-                Submitting Application...
-              </>
-            ) : (
-              'Submit Admission Form'
-            )}
-          </button>
+          <div style={{ marginTop: '30px' }}>
+            <button
+              type="submit"
+              disabled={!!submittingState}
+              className="btn-ripple btn-primary"
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                opacity: submittingState ? 0.7 : 1,
+                cursor: submittingState ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {submittingState ? (
+                <>
+                  <div
+                    style={{
+                      width: '20px', height: '20px',
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTopColor: '#ffffff',
+                      animation: 'pulse-glow 1s linear infinite',
+                    }}
+                  />
+                  {submittingState}
+                </>
+              ) : (
+                'Submit Application & Run AI Verification'
+              )}
+            </button>
+          </div>
         </form>
       </div>
 

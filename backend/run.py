@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import app
 
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 5001))
+    port = int(os.getenv("PORT", 5000))
     print("=" * 60)
     print("  Thought Minds Engineering College")
     print("  Smart Admission Portal - Backend API Server")
