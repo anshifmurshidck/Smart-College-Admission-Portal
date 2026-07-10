@@ -1,19 +1,19 @@
 import os
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
-from backend.config import Config
+from config import Config
 
 # Import blueprints
-from backend.routes.auth import auth_bp
-from backend.routes.admissions import admissions_bp
-from backend.routes.admin_api import admin_api_bp
-from backend.routes.departments import departments_bp
-from backend.routes.reports import reports_bp
-from backend.routes.chatbot import chatbot_bp
-from backend.routes.ocr_verification import ocr_bp
+from routes.auth import auth_bp
+from routes.admissions import admissions_bp
+from routes.admin_api import admin_api_bp
+from routes.departments import departments_bp
+from routes.reports import reports_bp
+from routes.chatbot import chatbot_bp, public_chatbot_bp
+from routes.ocr_verification import ocr_bp
 
 # Initialize DB Manager to trigger schema check / setup on boot
-from backend.db import db
+from db import db
 
 def create_app():
     app = Flask(__name__)
@@ -34,6 +34,7 @@ def create_app():
     app.register_blueprint(departments_bp, url_prefix='/api/departments')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
     app.register_blueprint(chatbot_bp, url_prefix='/api/admin')
+    app.register_blueprint(public_chatbot_bp, url_prefix='/api/chatbot')
     app.register_blueprint(ocr_bp, url_prefix='/api/ocr')
 
     # Serve uploaded documents statically

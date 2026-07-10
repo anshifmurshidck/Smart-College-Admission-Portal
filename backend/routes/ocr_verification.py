@@ -1,8 +1,8 @@
 import os
 import tempfile
 from flask import Blueprint, request, jsonify
-from backend.ocr_utils import extract_text
-from backend.verification import verify_marks
+from ocr_utils import extract_text
+from verification import verify_marks
 
 ocr_bp = Blueprint("ocr", __name__)
 

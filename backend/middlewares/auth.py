@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import request, jsonify
 import jwt
-from backend.config import Config
+from config import Config
 
 def token_required(allowed_roles=None):
     """

@@ -3,18 +3,21 @@ import random
 import datetime
 import re
 import requests
-import pytesseract
-import pypdf
-from PIL import Image
-import fitz
-import numpy as np
+try:
+    import pytesseract
+    import pypdf
+    from PIL import Image
+    import fitz
+    import numpy as np
+except ImportError:
+    pass
 from difflib import SequenceMatcher
 from io import BytesIO
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
-from backend.db import db
-from backend.config import Config
-from backend.ocr_utils import extract_text, configure_tesseract
+from db import db
+from config import Config
+from ocr_utils import extract_text, configure_tesseract
 
 admissions_bp = Blueprint('admissions', __name__)
 

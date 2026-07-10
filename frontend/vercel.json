@@ -1,0 +1,9 @@
+{
+  "name": "smart-college-admission-portal",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

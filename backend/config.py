@@ -1,13 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-# 1. Load from root .env first
-root_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
-if os.path.exists(root_env_path):
-    load_dotenv(root_env_path, override=True)
-
-# 2. Load from backend/.env second (so backend-specific variables override root/system variables)
+# Load environment variables from backend/.env (backend-specific variables)
 backend_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 if os.path.exists(backend_env_path):
     load_dotenv(backend_env_path, override=True)
@@ -29,13 +23,12 @@ class Config:
     MYSQL_DB = os.getenv("DB_NAME", "tmec_admission")
     
     FALLBACK_SQLITE = os.getenv("FALLBACK_SQLITE", "true").lower() in ("true", "1", "yes")
+
+    # DATA_DIR lets hosts with ephemeral/read-only filesystems (e.g. Render) point
+    # SQLite + uploads at a writable location such as /tmp or a mounted disk.
+    DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+    SQLITE_PATH = os.path.join(DATA_DIR, "tmec_portal.db")
+    UPLOAD_FOLDER = os.path.join(DATA_DIR, os.getenv("UPLOAD_FOLDER", "uploads"))
     
-    if os.getenv("VERCEL"):
-        SQLITE_PATH = "/tmp/tmec_portal.db"
-    else:
-        SQLITE_PATH = os.path.join(os.path.dirname(__file__), "tmec_portal.db")
-    
-    # Upload Settings
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), os.getenv("UPLOAD_FOLDER", "uploads"))
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload size
     ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}

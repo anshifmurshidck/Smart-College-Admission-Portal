@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: tmec-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      # Set these in the Render dashboard (values not committed):
+      - key: JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: documents
+      # Quick start uses the SQLite fallback. For persistent data, provision a
+      # managed DB and set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME instead.
+      - key: FALLBACK_SQLITE
+        value: "true"
+      # Render's filesystem is ephemeral; point writable data at /tmp (or mount a disk).
+      - key: DATA_DIR
+        value: /tmp

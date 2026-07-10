@@ -2,9 +2,9 @@ from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
-from backend.db import db
-from backend.config import Config
-from backend.middlewares.auth import token_required
+from db import db
+from config import Config
+from middlewares.auth import token_required
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -42,7 +42,7 @@ def login():
 
     if password_correct and (stored_hash == 'pbkdf2:sha256:600000$admin123_placeholder' or (username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD)):
         # Replace legacy placeholder hashes with a proper hash for the configured password.
-        new_hash = generate_password_hash(Config.ADMIN_PASSWORD)
+        new_hash = generate_password_hash(Config.ADMIN_PASSWORD, method='pbkdf2:sha256')
         db.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
 
     if not password_correct:

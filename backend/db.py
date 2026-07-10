@@ -1,7 +1,7 @@
 import os
 import pymysql
 import sqlite3
-from backend.config import Config
+from config import Config
 
 class DatabaseManager:
     def __init__(self):
@@ -37,7 +37,7 @@ class DatabaseManager:
 
     def _init_db(self):
         """Initializes the database schema if tables do not exist."""
-        schema_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database", "schema.sql")
+        schema_path = os.path.join(os.path.dirname(__file__), "database", "schema.sql")
         if not os.path.exists(schema_path):
             print(f"[DB MANAGER] Schema file not found at {schema_path}.")
             return
@@ -112,7 +112,7 @@ class DatabaseManager:
             admin = self.execute_read_one("SELECT id, password_hash FROM admins WHERE username = %s", (username,))
             if not admin:
                 # No admin exists for the configured username — create it.
-                new_hash = generate_password_hash(password)
+                new_hash = generate_password_hash(password, method='pbkdf2:sha256')
                 self.execute_write(
                     "INSERT INTO admins (username, password_hash, email, name, role) VALUES (%s, %s, %s, %s, %s)",
                     (username, new_hash, 'admin@thoughtminds.edu', 'Super Admin', 'super_admin')
@@ -120,7 +120,7 @@ class DatabaseManager:
                 print(f"[DB MANAGER] Admin account created (username: {username}, password: {password}).")
             elif admin['password_hash'] == 'pbkdf2:sha256:600000$admin123_placeholder':
                 # Replace placeholder hash with a proper hash for the configured password.
-                new_hash = generate_password_hash(password)
+                new_hash = generate_password_hash(password, method='pbkdf2:sha256')
                 self.execute_write("UPDATE admins SET password_hash = %s WHERE id = %s", (new_hash, admin['id']))
                 print(f"[DB MANAGER] Admin password hash initialized for {username}.")
 
@@ -185,7 +185,7 @@ class DatabaseManager:
                 return
 
             print(f"[DB SYNC] Fetching approved applications from Supabase: {supabase_url}")
-            url = f"{supabase_url.rstrip('/')}/rest/v1/applications?status=eq.Approved"
+            url = f"{supabase_url.rstrip('/')}/rest/v1/applications"
             headers = {
                 "apikey": supabase_key,
                 "Authorization": f"Bearer {supabase_key}"
@@ -200,41 +200,75 @@ class DatabaseManager:
             print(f"[DB SYNC] Syncing {len(applications)} student records into local database...")
             
             for app in applications:
-                # Upsert into applications table
-                # Check if application already exists
-                existing = self.execute_read_one("SELECT id FROM applications WHERE id = %s", (app["id"],))
-                
-                # Format decimal percentages safely
-                tenth = float(app["tenth_percentage"]) if app.get("tenth_percentage") is not None else None
-                twelfth = float(app["twelfth_percentage"]) if app.get("twelfth_percentage") is not None else None
-                
-                # Format timestamps cleanly (removing timezone suffix for standard MySQL/SQLite parse)
-                created_at = app["created_at"].split(".")[0].replace("T", " ") if app.get("created_at") else None
-                updated_at = app["updated_at"].split(".")[0].replace("T", " ") if app.get("updated_at") else None
-                
-                if existing:
-                    self.execute_write(
-                        """UPDATE applications SET 
-                           full_name=%s, email=%s, phone=%s, address=%s, dob=%s, gender=%s, 
-                           parent_name=%s, parent_phone=%s, department_id=%s, aadhaar_number=%s, 
-                           state=%s, tenth_percentage=%s, tenth_total_marks=%s, tenth_max_marks=%s, twelfth_percentage=%s, twelfth_total_marks=%s, twelfth_max_marks=%s, status=%s, 
-                           assigned_student_id=%s, ocr_status=%s, ocr_details=%s WHERE id=%s""",
-                        (app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
-                         app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
-                         app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), app["status"], app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"), app["id"])
-                    )
-                else:
-                    self.execute_write(
-                        """INSERT INTO applications 
-                           (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, 
-                            department_id, aadhaar_number, state, tenth_percentage, tenth_total_marks, tenth_max_marks, twelfth_percentage, twelfth_total_marks, twelfth_max_marks, 
-                            status, assigned_student_id, ocr_status, ocr_details) 
-                           VALUES 
-                           (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                        (app["id"], app["full_name"], app["email"], app["phone"], app["address"], app["dob"], app["gender"],
-                         app["parent_name"], app["parent_phone"], app["department_id"], app.get("aadhaar_number"),
-                         app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), app["status"], app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"))
-                    )
+                try:
+                    # Upsert into applications table
+                    # Check if application already exists
+                    existing = self.execute_read_one("SELECT id FROM applications WHERE id = %s", (app["id"],))
+                    
+                    # Format decimal percentages safely
+                    tenth = float(app["tenth_percentage"]) if app.get("tenth_percentage") is not None else None
+                    twelfth = float(app["twelfth_percentage"]) if app.get("twelfth_percentage") is not None else None
+                    
+                    # Format timestamps cleanly (removing timezone suffix for standard MySQL/SQLite parse)
+                    created_at = app["created_at"].split(".")[0].replace("T", " ") if app.get("created_at") else None
+                    updated_at = app["updated_at"].split(".")[0].replace("T", " ") if app.get("updated_at") else None
+                    
+                    # Fallback for NOT NULL fields just in case
+                    full_name = app.get("full_name") or "Unknown"
+                    email = app.get("email") or "no-email@example.com"
+                    phone = app.get("phone") or "0000000000"
+                    address = app.get("address") or "N/A"
+                    dob = app.get("dob") or "2000-01-01"
+                    gender = app.get("gender") or "Other"
+                    parent_name = app.get("parent_name") or "Unknown"
+                    parent_phone = app.get("parent_phone") or "0000000000"
+                    dept_id = app.get("department_id") or 1
+                    status = app.get("status") or "Pending"
+
+                    if existing:
+                        self.execute_write(
+                            """UPDATE applications SET 
+                               full_name=%s, email=%s, phone=%s, address=%s, dob=%s, gender=%s, 
+                               parent_name=%s, parent_phone=%s, department_id=%s, aadhaar_number=%s, 
+                               state=%s, tenth_percentage=%s, tenth_total_marks=%s, tenth_max_marks=%s, twelfth_percentage=%s, twelfth_total_marks=%s, twelfth_max_marks=%s, status=%s, 
+                               assigned_student_id=%s, ocr_status=%s, ocr_details=%s WHERE id=%s""",
+                            (full_name, email, phone, address, dob, gender,
+                             parent_name, parent_phone, dept_id, app.get("aadhaar_number"),
+                             app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), status, app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"), app["id"])
+                        )
+                    else:
+                        self.execute_write(
+                            """INSERT INTO applications 
+                               (id, full_name, email, phone, address, dob, gender, parent_name, parent_phone, 
+                                department_id, aadhaar_number, state, tenth_percentage, tenth_total_marks, tenth_max_marks, twelfth_percentage, twelfth_total_marks, twelfth_max_marks, 
+                                status, assigned_student_id, ocr_status, ocr_details) 
+                               VALUES 
+                               (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                            (app["id"], full_name, email, phone, address, dob, gender,
+                             parent_name, parent_phone, dept_id, app.get("aadhaar_number"),
+                             app.get("state"), tenth, app.get("tenth_total_marks"), app.get("tenth_max_marks"), twelfth, app.get("twelfth_total_marks"), app.get("twelfth_max_marks"), status, app.get("assigned_student_id"), app.get("ocr_status", "Not Processed"), app.get("ocr_details"))
+                        )
+                    
+                    # Also sync into students table
+                    if status == "Approved" and app.get("assigned_student_id"):
+                        student_id = app["assigned_student_id"]
+                        existing_student = self.execute_read_one("SELECT id FROM students WHERE id = %s", (student_id,))
+                        if existing_student:
+                            self.execute_write(
+                                """UPDATE students SET 
+                                   full_name=%s, email=%s, phone=%s, dob=%s, gender=%s, department_id=%s 
+                                   WHERE id=%s""",
+                                (full_name, email, phone, dob, gender, dept_id, student_id)
+                            )
+                        else:
+                            self.execute_write(
+                                """INSERT INTO students 
+                                   (id, application_id, full_name, email, phone, dob, gender, department_id) 
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                                (student_id, app["id"], full_name, email, phone, dob, gender, dept_id)
+                            )
+                except Exception as ex:
+                    print(f"[DB SYNC] Skipped invalid application {app.get('id')}: {ex}")
             print("[DB SYNC] Supabase database sync completed successfully.")
         except Exception as e:
             print(f"[DB SYNC] Error syncing Supabase data: {e}")

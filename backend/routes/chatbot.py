@@ -3,8 +3,8 @@ import re
 import json
 from flask import Blueprint, request, jsonify
 import requests
-from backend.db import db
-from backend.middlewares.auth import token_required
+from db import db
+from middlewares.auth import token_required
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
@@ -644,3 +644,122 @@ def admin_chat(current_user):
     except Exception as e:
         print(f"[CHAT ROUTE ERROR]: {e}")
         return jsonify({"reply": "An error occurred while processing the chat query.", "error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public (unauthenticated) admissions assistant for the home page chatbot.
+# Answers general admission questions via Gemini, with a local keyword fallback
+# when no GEMINI_API_KEY is configured or Gemini is unavailable.
+# ─────────────────────────────────────────────────────────────────────────────
+
+public_chatbot_bp = Blueprint('public_chatbot', __name__)
+
+TMEC_PUBLIC_KNOWLEDGE = """
+Thought Minds Engineering College (TMEC) — public admissions information.
+
+ADMISSION PROCESS (fully digital, 4 steps):
+1. Apply Online: fill personal & academic details in the Admission Form at /apply.
+2. Upload Documents: 10th & 12th marksheets and a Government ID proof.
+3. Evaluation: the committee reviews credentials, usually within 24 hours.
+4. Student ID: approved students are auto-enrolled with a unique TMEC Student ID.
+
+ENGINEERING BRANCHES (B.Tech):
+- Computer Science Engineering (CSE) — software systems and computational theory.
+- Artificial Intelligence & Machine Learning (AIML) — deep learning, neural networks, data science.
+- Electronics & Communication (ECE) — signal processing, VLSI, telecommunication.
+- Mechanical Engineering (ME) — robotics, thermodynamics, manufacturing.
+- Civil Engineering (CE) — structural analysis, sustainable construction.
+
+ELIGIBILITY: Minimum 60% aggregate in 12th (Physics, Chemistry, Mathematics).
+
+FEES (per semester): CSE / AIML: Rs.95,000. ECE / ME / CE: Rs.80,000.
+SCHOLARSHIPS: Students scoring >90% in 12th boards get a 25% tuition fee waiver.
+
+CONTACT: Phone +91 98765 43210 / 080-23456789. Email admissions@tmec.edu.in.
+Campus: Tech Park Road, Bengaluru, Karnataka - 560001. Hours: Mon-Sat, 9 AM - 5 PM.
+
+USEFUL LINKS (use markdown links): Apply -> /apply, Track status -> /track,
+Departments -> /departments, Contact -> /contact.
+"""
+
+
+def public_local_reply(message):
+    """Keyword-based fallback used when Gemini is not configured/available."""
+    lower = (message or "").lower()
+    if any(k in lower for k in ["apply", "admission", "register", "process", "enroll"]):
+        return ("TMEC Admissions are fully digital. You can submit your form in under 10 minutes "
+                "at the [Apply Now Page](/apply).\n\nSteps:\n1. Fill details\n2. Upload Marksheets & ID proof\n"
+                "3. Wait for committee review (usually 24 hours)\n4. Receive your unique TMEC Student ID upon approval!")
+    if any(k in lower for k in ["branch", "department", "course", "cse", "aiml", "ece", "mech", "civil"]):
+        return ("TMEC offers 5 specialized B.Tech programs:\n\n* **Computer Science (CSE)**\n* **Artificial Intelligence (AIML)**\n"
+                "* **Electronics (ECE)**\n* **Mechanical (ME)**\n* **Civil Engineering (CE)**\n\n"
+                "Learn more on our [Academic Departments Page](/departments).")
+    if any(k in lower for k in ["fee", "cost", "price", "scholarship", "criteria", "eligibility"]):
+        return ("**Admissions Eligibility:**\n* B.Tech: Minimum 60% aggregate in 12th (Physics, Chemistry, Maths).\n\n"
+                "**Fee Structure (per semester):**\n* CSE / AIML: Rs.95,000\n* ECE / ME / CE: Rs.80,000\n\n"
+                "*Scholarships: Students with >90% in 12th Boards get 25% tuition fee waiver!*")
+    if any(k in lower for k in ["track", "status", "check"]):
+        return ("To track your application, please provide your **Application ID** (format `APP-2026-XXXX`). "
+                "Enter it below and I'll fetch it instantly!")
+    if any(k in lower for k in ["contact", "phone", "email", "call", "address", "location"]):
+        return ("Reach the TMEC Admissions office at:\n* Phone: +91 98765 43210\n* Email: admissions@tmec.edu.in\n"
+                "* Campus: Thought Minds Engineering College, Bengaluru.\n\nYou can also use our [Contact Page](/contact).")
+    if any(k in lower for k in ["hi", "hello", "hey", "greetings"]):
+        return ("Hello! I am here to help you navigate TMEC Admissions. Ask me about our courses, "
+                "eligibility criteria, semester fees, or tracking status.")
+    return ("I can help you with:\n\n* **Applying for Admissions**\n* **Tuition Fees & Eligibility**\n"
+            "* **Engineering Branches & HOD details**\n* **Tracking Application Status (provide ID: APP-YYYY-XXXX)**\n"
+            "* **Admissions Contact details**\n\nYou can also use the quick reply buttons below.")
+
+
+@public_chatbot_bp.route('/chat', methods=['POST'])
+def public_chat():
+    """Public admissions Q&A. Uses Gemini when available, else a local keyword fallback."""
+    try:
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+        history = data.get('history', [])
+
+        if not message:
+            return jsonify({
+                "reply": "Hello! Ask me about TMEC admissions, branches, fees, or how to apply.",
+                "gemini_active": bool(os.getenv("GEMINI_API_KEY", "").strip())
+            }), 200
+
+        history_lines = []
+        for h in history[-6:]:
+            role = "user" if (h.get("sender") == "user" or h.get("role") == "user") else "assistant"
+            text = h.get("text") or h.get("content") or ""
+            if text:
+                history_lines.append(f"{role}: {text}")
+        history_str = "\n".join(history_lines)
+
+        system_instruction = (
+            "You are the TMEC (Thought Minds Engineering College) public admissions assistant. "
+            "Answer prospective students' questions ONLY using the knowledge base below. "
+            "Be warm, concise, and use clean markdown (bold, bullet lists, links). "
+            "Use the provided /apply, /track, /departments, /contact links where helpful. "
+            "You do NOT have access to private student records; if asked to look up a specific "
+            "person's data, direct them to track their application by Application ID. "
+            "If a question is outside admissions, politely redirect to admissions topics.\n\n"
+            f"KNOWLEDGE BASE:\n{TMEC_PUBLIC_KNOWLEDGE}"
+        )
+        prompt = (
+            (f"Conversation so far:\n{history_str}\n\n" if history_str else "")
+            + f"User's question: \"{message}\"\n\nAnswer helpfully using the knowledge base."
+        )
+
+        gemini_res = call_gemini(prompt, system_instruction=system_instruction)
+
+        if "text" in gemini_res and gemini_res["text"].strip():
+            return jsonify({"reply": gemini_res["text"], "gemini_active": True}), 200
+
+        # Fallback: local keyword responder
+        return jsonify({"reply": public_local_reply(message), "gemini_active": False}), 200
+
+    except Exception as e:
+        print(f"[PUBLIC CHAT ERROR]: {e}")
+        return jsonify({
+            "reply": public_local_reply((request.get_json() or {}).get('message', '')),
+            "gemini_active": False
+        }), 200
