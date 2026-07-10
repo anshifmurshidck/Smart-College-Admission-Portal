@@ -5,11 +5,21 @@ const supabaseAnonKey = 'sb_publishable_6cV57fiEzgN8GVbr-m3B9w_S6i6SuXs';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function test() {
-  const { data, error } = await supabase.from('applications').select('*').limit(1);
+  const { data, error } = await supabase
+    .from('applications')
+    .select(`
+      id, 
+      full_name, 
+      email, 
+      status,
+      assigned_student_id,
+      department:departments(name, code),
+      status_history(comments, status)
+    `);
   if (error) {
-    console.error(error);
+    console.error('Error returned by Supabase:', error);
   } else {
-    console.log(data.length > 0 ? Object.keys(data[0]) : 'No data');
+    console.log('Query succeeded, fetched records count:', data.length);
   }
 }
 

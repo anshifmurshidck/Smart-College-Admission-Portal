@@ -72,7 +72,6 @@ export default function ApplicationsList() {
   // Search & Filter state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [ocrFilter, setOcrFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [departments, setDepartments] = useState([]);
   
@@ -88,7 +87,7 @@ export default function ApplicationsList() {
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
 
-  const API_BASE = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || '/api');
+  const API_BASE = (import.meta.env.VITE_API_URL || '/api');
   const SERVER_HOST = 'http://127.0.0.1:5000'; // For file serving
 
   const loadApplications = async () => {
@@ -96,17 +95,29 @@ export default function ApplicationsList() {
     setErrorMsg('');
     
     try {
-      const token = localStorage.getItem('adminToken');
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (statusFilter) params.append('status', statusFilter);
-      if (deptFilter) params.append('departmentId', deptFilter);
+      let query = supabase
+        .from('applications')
+        .select(`
+          id, 
+          full_name, 
+          email, 
+          status,
+          assigned_student_id,
+          department:departments(name, code)
+        `);
       
-      const response = await fetch(`${API_BASE}/admin/applications?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch');
-      const data = await response.json();
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,id.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+      if (deptFilter) {
+        query = query.eq('department_id', deptFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
       setApplications(data);
     } catch (err) {
       console.error(err);
@@ -120,19 +131,12 @@ export default function ApplicationsList() {
     loadApplications();
     
     const loadDepts = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/departments`);
-        if (response.ok) {
-          const data = await response.json();
-          setDepartments(data);
-        }
-      } catch (e) {
-        console.error(e);
-      }
+      const { data } = await supabase.from('departments').select('*');
+      if (data) setDepartments(data);
     };
     loadDepts();
     setPage(1);
-  }, [search, statusFilter, ocrFilter, deptFilter]);
+  }, [search, statusFilter, deptFilter]);
 
   const viewApplicationDetails = async (appId) => {
     setSelectedApp(appId);
@@ -142,21 +146,82 @@ export default function ApplicationsList() {
     setComments('');
     
     try {
-      const token = localStorage.getItem('adminToken');
-      const response = await fetch(`${API_BASE}/admin/applications/${appId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch details');
-      const data = await response.json();
+      const { data: appData, error: appError } = await supabase
+        .from('applications')
+        .select(`*, department:departments(name, code)`)
+        .eq('id', appId)
+        .single();
       
+      if (appError) throw appError;
+
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('application_id', appId);
+        
+      if (docsError) throw docsError;
+
+      const { data: timelineData, error: timelineError } = await supabase
+        .from('status_history')
+        .select('*')
+        .eq('application_id', appId)
+        .order('updated_at', { ascending: true });
+
+      if (timelineError) throw timelineError;
+
+      let timeline = timelineData || [];
+      if (timeline.length === 0) {
+        timeline = [{
+          status: appData.status,
+          updated_at: appData.created_at,
+          comments: appData.status === 'Pending' ? 'Application successfully submitted.' : 'Application status updated.',
+          updater_name: 'System Auto'
+        }];
+      }
+
+      let docs = docsData || [];
+      if (docs.length === 0) {
+        const docTypes = [
+          { id: '10th', name: 'marksheet10', title: '10th Marksheet', fallback: '/graduation.png' },
+          { id: '12th', name: 'marksheet12', title: '12th Marksheet', fallback: '/dept_cse.png' },
+          { id: 'id', name: 'idProof', title: 'ID Proof', fallback: '/logo_transparent.png' }
+        ];
+        const exts = ['.pdf', '.png', '.jpg', '.jpeg', ''];
+        
+        docs = await Promise.all(docTypes.map(async (doc) => {
+          let foundUrl = null;
+          for (const ext of exts) {
+            const publicUrl = supabase.storage.from('documents').getPublicUrl(`${appId}/${doc.name}${ext}`).data.publicUrl;
+            try {
+              const res = await fetch(publicUrl, { method: 'HEAD' });
+              if (res.ok) {
+                foundUrl = publicUrl;
+                break;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+          return {
+            id: foundUrl ? `${appId}-${doc.id}` : `mock-${doc.id}`,
+            document_type: doc.title,
+            file_path: foundUrl || doc.fallback
+          };
+        }));
+      }
+
       const formattedDetails = {
-        application: data.application,
-        documents: data.documents || [],
-        timeline: data.timeline || []
+        application: {
+          ...appData,
+          department_code: appData.department.code,
+          department_name: appData.department.name
+        },
+        documents: docs,
+        timeline: timeline
       };
-      
+
       setModalDetails(formattedDetails);
-      setNewStatus(data.application.status);
+      setNewStatus(appData.status);
     } catch (err) {
       console.error(err);
       setModalError('Failed to retrieve application file details.');
@@ -170,21 +235,33 @@ export default function ApplicationsList() {
     if (!newStatus) return;
 
     setSubmittingStatus(true);
+
     try {
-      const token = localStorage.getItem('adminToken');
-      const response = await fetch(`${API_BASE}/admin/applications/${selectedApp}/status`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus, comments })
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update status');
+      let studentId = modalDetails.application.assigned_student_id;
+
+      if (newStatus === 'Approved' && !studentId) {
+        const year = new Date().getFullYear();
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        studentId = `STU-${year}-${rand}`;
       }
-      
+
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', selectedApp);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: selectedApp,
+          status: newStatus,
+          comments: comments || `Status changed to ${newStatus}`
+        }]);
+
+      if (logError) throw logError;
+
       loadApplications();
       viewApplicationDetails(selectedApp);
     } catch (err) {
@@ -201,24 +278,31 @@ export default function ApplicationsList() {
 
     setActionLoading(prev => ({ ...prev, [appId]: newStatus }));
     try {
-      const token = localStorage.getItem('adminToken');
-      const response = await fetch(`${API_BASE}/admin/applications/${appId}/status`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          status: newStatus,
-          comments: `Status updated to ${newStatus} directly from application list.`
-        })
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update status');
+      let studentId = null;
+
+      if (newStatus === 'Approved') {
+        studentId = app.assigned_student_id || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ status: newStatus, assigned_student_id: studentId })
+        .eq('id', appId);
+
+      if (updateError) throw updateError;
+
+      const { error: logError } = await supabase
+        .from('status_history')
+        .insert([{
+          application_id: appId,
+          status: newStatus,
+          comments: `Status updated to ${newStatus} directly from application list.`
+        }]);
+
+      if (logError) throw logError;
+
       await loadApplications();
+
       if (selectedApp === appId) {
         viewApplicationDetails(appId);
       }
@@ -256,49 +340,8 @@ export default function ApplicationsList() {
     );
   };
 
-  const getOcrBadge = (app) => {
-    const report = getOcrReport(app, null);
-    const ocrStatus = report?.ocrStatus || app.ocr_status || 'Not Processed';
-    
-    let color = '#64748b';
-    let bg = 'rgba(100, 116, 139, 0.08)';
-    let text = 'Not Processed';
-    
-    if (ocrStatus === 'Verified') {
-      color = '#059669';
-      bg = 'rgba(5, 150, 105, 0.08)';
-      text = '✓ Verified';
-    } else if (ocrStatus === 'Flagged') {
-      color = '#ef4444';
-      bg = 'rgba(239, 68, 68, 0.08)';
-      text = '⚠️ Mismatch (Manual)';
-    }
-    
-    return (
-      <span style={{ 
-        padding: '4px 10px', 
-        borderRadius: 'var(--radius-full)', 
-        fontSize: '11px', 
-        fontWeight: '700', 
-        color, 
-        backgroundColor: bg,
-        border: `1px solid ${color}15`,
-        display: 'inline-block'
-      }}>
-        {text}
-      </span>
-    );
-  };
-
-  const filteredApplications = applications.filter(app => {
-    if (!ocrFilter) return true;
-    const report = getOcrReport(app, app.status_history);
-    const ocrStatus = report?.ocrStatus || 'Not Processed';
-    return ocrStatus === ocrFilter;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filteredApplications.length / PAGE_SIZE));
-  const paginatedApplications = filteredApplications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(applications.length / PAGE_SIZE));
+  const paginatedApplications = applications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -345,16 +388,6 @@ export default function ApplicationsList() {
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Filter size={16} style={{ color: 'var(--text-secondary)' }} />
-            <select value={ocrFilter} onChange={(e) => setOcrFilter(e.target.value)} className="form-select" style={{ padding: '8px 12px', fontSize: '13px' }}>
-              <option value="">All Verifications</option>
-              <option value="Verified">Verified (Success)</option>
-              <option value="Flagged">Flagged (Mismatch)</option>
-              <option value="Not Processed">Not Processed</option>
-            </select>
-          </div>
-
           <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="form-select" style={{ padding: '8px 12px', fontSize: '13px' }}>
             <option value="">All Departments</option>
             {departments.map((d) => (
@@ -386,8 +419,7 @@ export default function ApplicationsList() {
                 <th style={{ padding: '12px 16px' }}>Name</th>
                 <th style={{ padding: '12px 16px' }}>Email</th>
                 <th style={{ padding: '12px 16px' }}>Branch</th>
-                <th style={{ padding: '12px 16px' }}>Verification Status</th>
-                <th style={{ padding: '12px 16px' }}>Admin Status</th>
+                <th style={{ padding: '12px 16px' }}>Status</th>
                 <th style={{ padding: '12px 16px' }}>Actions</th>
               </tr>
             </thead>
@@ -405,7 +437,6 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
                   <td style={{ padding: '16px' }}>{app.department?.name || '-'}</td>
-                  <td style={{ padding: '16px' }}>{getOcrBadge(app)}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -515,7 +546,7 @@ export default function ApplicationsList() {
 
           {/* Pagination */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            <span>Page {page} of {totalPages} — {filteredApplications.length} records</span>
+            <span>Page {page} of {totalPages} — {applications.length} records</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ripple btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
                 <ChevronLeft size={14} />
@@ -586,30 +617,6 @@ export default function ApplicationsList() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                 
-                {(() => {
-                  const report = getOcrReport(modalDetails.application, modalDetails.timeline);
-                  if (report && report.ocrStatus === 'Flagged') {
-                    return (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '16px',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        color: '#ef4444',
-                        fontSize: '13px',
-                        fontWeight: '600'
-                      }}>
-                        <AlertCircle size={20} />
-                        <span>Flagged for Manual Review: Mismatch detected in uploaded documents.</span>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
                 {/* Profile Grid */}
                 <div>
                   <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '16px' }}>
