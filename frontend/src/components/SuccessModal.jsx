@@ -97,23 +97,7 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
           )}
         </p>
 
-        {ocrResult && !ocrResult.tesseractActive && !ocrResult.details?.error && (
-          <div 
-            style={{
-              backgroundColor: 'rgba(245, 158, 11, 0.04)',
-              border: '1px solid rgba(245, 158, 11, 0.15)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '12px',
-              fontSize: '12px',
-              color: '#d97706',
-              marginBottom: '20px',
-              textAlign: 'left',
-              lineHeight: '1.4'
-            }}
-          >
-            <strong>💡 Demo Notice:</strong> Tesseract OCR engine was not found on this server. Document image contents were <strong>not</strong> read; verification has been simulated. Upload text-based <strong>PDF files</strong> to run real matching.
-          </div>
-        )}
+
 
         {isApproved ? (
           <div style={{
