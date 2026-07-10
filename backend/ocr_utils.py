@@ -1,27 +1,60 @@
 import os
-import logging
-
-def configure_tesseract():
-    return True
+import base64
+import requests
 
 def extract_text(file_path):
+    """Extract text from image or PDF files using Gemini Vision API instead of Tesseract."""
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        print("[OCR] GEMINI_API_KEY not found. OCR cannot proceed.")
+        return None
+
     try:
-        from PIL import Image
-        import pytesseract
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext == '.pdf':
+            mime_type = "application/pdf"
+        elif file_ext in ['.jpg', '.jpeg']:
+            mime_type = "image/jpeg"
+        elif file_ext == '.png':
+            mime_type = "image/png"
+        elif file_ext in ['.webp', '.heic', '.heif']:
+            mime_type = f"image/{file_ext[1:]}"
+        else:
+            print(f"[OCR] Unsupported file format: {file_ext}")
+            return None
+
+        with open(file_path, "rb") as f:
+            file_data = base64.b64encode(f.read()).decode('utf-8')
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
-        # Check if tesseract is installed
-        try:
-            pytesseract.get_tesseract_version()
-        except Exception:
-            logging.warning("Tesseract is not installed. Returning empty string.")
-            return ""
-            
-        # Try to extract text
-        text = pytesseract.image_to_string(Image.open(file_path))
-        return text
-    except ImportError:
-        logging.warning("PIL or pytesseract not installed. Returning empty string.")
-        return ""
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": "Extract all the text from this document exactly as written. If it contains academic subjects and their marks, output them clearly in a structured format (e.g. 'Mathematics: 90')."},
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": file_data
+                            }
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {"temperature": 0.0}
+        }
+
+        res = requests.post(url, json=payload)
+        
+        if res.status_code == 200:
+            data = res.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            return text.strip() if text.strip() else None
+        else:
+            print(f"[OCR] Gemini API Error {res.status_code}: {res.text}")
+            return None
+
     except Exception as e:
-        logging.error(f"OCR Error extracting text from {file_path}: {e}")
-        return ""
+        print(f"[OCR] Exception extracting text: {e}")
+        return None

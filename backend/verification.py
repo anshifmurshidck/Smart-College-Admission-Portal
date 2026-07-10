@@ -29,6 +29,9 @@ def verify_marks(form_marks, ocr_text):
 
         ocr_mark = extracted_marks.get(subject.lower())
 
+        if entered_mark is None or entered_mark == "":
+            continue  # Skip if the user didn't enter a mark for this subject
+
         if ocr_mark is None:
             result["verified"] = False
             result["mismatches"].append(
