@@ -32,7 +32,7 @@ def extract_text(file_path):
             "contents": [
                 {
                     "parts": [
-                        {"text": "Extract all the text from this document exactly as written. If it contains academic subjects and their marks, output them clearly in a structured format (e.g. 'Mathematics: 90')."},
+                        {"text": "Extract all the text from this document exactly as written with 100% accuracy. Pay special attention to names, Aadhaar numbers, and academic marks. If it contains academic subjects and their marks, output them clearly in a structured format with the maximum marks and obtained marks (e.g. 'Mathematics: 90 / 100'). Ensure percentages and totals are captured precisely."},
                         {
                             "inlineData": {
                                 "mimeType": mime_type,
@@ -45,7 +45,7 @@ def extract_text(file_path):
             "generationConfig": {"temperature": 0.0}
         }
 
-        res = requests.post(url, json=payload)
+        res = requests.post(url, json=payload, timeout=15)
         
         if res.status_code == 200:
             data = res.json()
