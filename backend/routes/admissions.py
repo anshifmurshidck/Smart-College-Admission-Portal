@@ -17,11 +17,11 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 from db import db
 from config import Config
-from ocr_utils import extract_text, configure_tesseract
+from ocr_utils import extract_text
 
 admissions_bp = Blueprint('admissions', __name__)
 
-configure_tesseract()
+
 
 def try_read_as_text(file_path):
     try:
