@@ -15,7 +15,8 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
   const isApproved = ocrResult?.verified;
   const studentId = ocrResult?.studentId;
   const details = ocrResult?.details || {};
-  const hasMismatch = ocrResult && !isApproved;
+  const hasError = details.error === true;
+  const hasMismatch = ocrResult && !isApproved && !hasError;
 
   return (
     <div 
@@ -47,19 +48,19 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
         }}
       >
         {/* Animated Icon Header (Check vs Warning) */}
-        {hasMismatch ? (
+        {(hasMismatch || hasError) ? (
           <div style={{
             width: '72px',
             height: '72px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
+            background: hasError ? 'linear-gradient(135deg, #64748b 0%, #475569 100%)' : 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 24px auto',
-            boxShadow: '0 0 20px rgba(239, 68, 68, 0.4)'
+            boxShadow: hasError ? '0 0 20px rgba(100, 116, 139, 0.4)' : '0 0 20px rgba(239, 68, 68, 0.4)'
           }}>
-            <AlertTriangle size={36} color="white" />
+            {hasError ? <ShieldAlert size={36} color="white" /> : <AlertTriangle size={36} color="white" />}
           </div>
         ) : (
           <div style={{
@@ -82,13 +83,17 @@ export default function SuccessModal({ isOpen, applicationId, ocrResult, onClose
           fontWeight: '700', 
           marginBottom: '12px', 
           fontFamily: 'var(--font-secondary)',
-          color: hasMismatch ? '#ef4444' : 'var(--text-primary)'
+          color: hasMismatch ? '#ef4444' : (hasError ? '#e2e8f0' : 'var(--text-primary)')
         }}>
-          {hasMismatch ? 'Verification Mismatch Detected' : 'Application Submitted!'}
+          {hasError ? 'Application Submitted!' : (hasMismatch ? 'Verification Mismatch Detected' : 'Application Submitted!')}
         </h3>
         
         <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px', fontSize: '14px' }}>
-          {hasMismatch ? (
+          {hasError ? (
+            <span>
+              Your application has been submitted successfully. Our AI pre-verification system is currently offline, so your documents have been <strong>flagged for Manual Review</strong> by the admissions office.
+            </span>
+          ) : hasMismatch ? (
             <span>
               Your application was submitted, but a mismatch was detected between the details you entered and your uploaded documents (specifically {!details.aadhaar_matched ? <strong>your Aadhaar number</strong> : 'your academic/personal details'}). It has been <strong>flagged for Manual Review</strong> by the admissions office.
             </span>

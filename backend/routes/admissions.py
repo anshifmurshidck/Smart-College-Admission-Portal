@@ -443,7 +443,7 @@ def verify_ocr():
             details['twelfth_matched'] = False
         else:
             # 1. ID Proof checks
-            if id_text.strip():
+            if id_text and id_text.strip():
                 name_match = verify_name_in_text(id_text, full_name)
                 aadhaar_match = verify_aadhaar_in_text(id_text, aadhaar_number)
 
@@ -457,7 +457,7 @@ def verify_ocr():
                 details['aadhaar_matched'] = False
 
             # 2. 10th Marksheet checks
-            if m10_text.strip():
+            if m10_text and m10_text.strip():
                 tenth_pct_match = verify_percentage_in_text(m10_text, tenth_percentage)
                 tenth_marks_match = verify_marks_in_text(m10_text, tenth_total_marks, tenth_max_marks, tenth_percentage)
 
@@ -469,7 +469,7 @@ def verify_ocr():
                 details['tenth_matched'] = False
 
             # 3. 12th Marksheet checks
-            if m12_text.strip():
+            if m12_text and m12_text.strip():
                 twelfth_pct_match = verify_percentage_in_text(m12_text, twelfth_percentage)
                 twelfth_marks_match = verify_marks_in_text(m12_text, twelfth_total_marks, twelfth_max_marks, twelfth_percentage)
 
