@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Upload, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import SuccessModal from '../components/SuccessModal';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 
 /* ─── Client-side Image Compression ────────────────────────────────── */
 const compressImage = (file) => {
@@ -156,8 +157,6 @@ export default function Apply() {
   const [applicationId, setApplicationId] = useState('');
   const [ocrResult, setOcrResult] = useState(null);
   const [agreed, setAgreed] = useState(false);
-
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
     const fetchDepartments = async () => {
@@ -505,20 +504,64 @@ export default function Apply() {
 
     const submitApplication = async () => {
       try {
-        // 1. Generate unique Application ID
-        const year = new Date().getFullYear();
-        const random = Math.floor(1000 + Math.random() * 9000);
-        const appId = `APP-${year}-${random}`;
-
-        // 1.5 Compress images client-side to dramatically speed up upload time
+        // 1. Compress images client-side to dramatically speed up upload time
         const comp10 = await compressImage(files.marksheet10);
         const comp12 = await compressImage(files.marksheet12);
         const compId = await compressImage(files.idProof);
 
-        // 2. Call OCR Verification API
-        let verified = false;
-        let ocrDetails = {};
-        let tActive = false;
+        // OCR is intentionally not run here: it can take several seconds and used to
+        // make the applicant upload the same files twice. Save the application first
+        // and leave document verification for the admissions workflow.
+        const verified = false;
+        const tActive = false;
+        const ocrDetails = {
+          name_matched: false,
+          aadhaar_matched: false,
+          tenth_matched: false,
+          twelfth_matched: false,
+          manual_review: true
+        };
+        const ocrStatus = 'Not Processed';
+        const ocrDetailsJson = JSON.stringify(ocrDetails);
+
+        setSubmittingState('Uploading documents and saving application...');
+
+        const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
+        const combinedParentPhone = trimmedData.parentPhoneCountryCode === 'Other' ? trimmedData.parentPhone : trimmedData.parentPhoneCountryCode + trimmedData.parentPhone;
+
+        const applicationFormData = new FormData();
+        applicationFormData.append('fullName', trimmedData.fullName);
+        applicationFormData.append('email', trimmedData.email);
+        applicationFormData.append('phone', combinedPhone);
+        applicationFormData.append('address', trimmedData.address);
+        applicationFormData.append('dob', trimmedData.dob);
+        applicationFormData.append('gender', trimmedData.gender);
+        applicationFormData.append('parentName', trimmedData.parentName);
+        applicationFormData.append('parentPhone', combinedParentPhone);
+        applicationFormData.append('departmentId', trimmedData.departmentId);
+        applicationFormData.append('aadhaarNumber', trimmedData.aadhaarNumber);
+        applicationFormData.append('state', trimmedData.state);
+        applicationFormData.append('tenthPercentage', trimmedData.tenthPercentage);
+        applicationFormData.append('tenthTotalMarks', trimmedData.tenthTotalMarks);
+        applicationFormData.append('tenthMaxMarks', trimmedData.tenthMaxMarks);
+        applicationFormData.append('twelfthPercentage', trimmedData.twelfthPercentage);
+        applicationFormData.append('twelfthTotalMarks', trimmedData.twelfthTotalMarks);
+        applicationFormData.append('twelfthMaxMarks', trimmedData.twelfthMaxMarks);
+        applicationFormData.append('ocrStatus', ocrStatus);
+        applicationFormData.append('ocrDetails', ocrDetailsJson);
+        applicationFormData.append('marksheet10', comp10);
+        applicationFormData.append('marksheet12', comp12);
+        applicationFormData.append('idProof', compId);
+
+        const submitResponse = await axios.post(`${API_BASE}/admissions/apply`, applicationFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        const appId = submitResponse.data.applicationId;
+        setSubmittingState('Verifying documents...');
+        let finalOcrResult;
         try {
           const ocrFormData = new FormData();
           ocrFormData.append('fullName', trimmedData.fullName);
@@ -529,139 +572,42 @@ export default function Apply() {
           ocrFormData.append('twelfthPercentage', trimmedData.twelfthPercentage);
           ocrFormData.append('twelfthTotalMarks', trimmedData.twelfthTotalMarks);
           ocrFormData.append('twelfthMaxMarks', trimmedData.twelfthMaxMarks);
-
           ocrFormData.append('marksheet10', comp10);
           ocrFormData.append('marksheet12', comp12);
           ocrFormData.append('idProof', compId);
 
-          setSubmittingState('AI verifying documents... (takes ~5-8s)');
-
           const ocrResponse = await axios.post(`${API_BASE}/admissions/verify-ocr`, ocrFormData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 30000
           });
-          
-          verified = ocrResponse.data.verified;
-          ocrDetails = ocrResponse.data.details;
-          tActive = ocrResponse.data.tesseract_active;
+          const result = ocrResponse.data;
+          finalOcrResult = {
+            verified: !!result.verified,
+            details: result.details || { error: true, manual_review: true },
+            tesseractActive: !!result.tesseract_active
+          };
         } catch (ocrErr) {
-          console.warn('OCR verification unreachable. Defaulting to manual review.', ocrErr);
-          verified = false;
-          ocrDetails = {
-            name_matched: false,
-            aadhaar_matched: false,
-            tenth_matched: false,
-            twelfth_matched: false,
-            error: true
+          console.warn('OCR verification could not be completed.', ocrErr);
+          finalOcrResult = {
+            verified: false,
+            details: { error: true, manual_review: true },
+            tesseractActive: false
           };
         }
 
-        const finalStatus = 'Pending';
-        const assignedStudentId = null;
-        const ocrStatus = verified ? 'Verified' : 'Flagged';
-        const ocrDetailsJson = JSON.stringify(ocrDetails);
-
-        setSubmittingState('Saving Application Data...');
-
-        // Helper function for uploading to Supabase Storage
-        const uploadFile = async (file, type) => {
-          const fileExt = file.name.split('.').pop();
-          const filePath = `${appId}/${type}.${fileExt}`;
-          
-          const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file);
-          if (uploadError) throw uploadError;
-          
-          const { data } = supabase.storage.from('documents').getPublicUrl(filePath);
-          return data.publicUrl;
-        };
-
-        // 3. Upload Documents in Parallel using the compressed versions
-        const [marksheet10Url, marksheet12Url, idProofUrl] = await Promise.all([
-          uploadFile(comp10, 'marksheet10'),
-          uploadFile(comp12, 'marksheet12'),
-          uploadFile(compId, 'idProof')
-        ]);
-
-        const combinedPhone = trimmedData.phoneCountryCode === 'Other' ? trimmedData.phone : trimmedData.phoneCountryCode + trimmedData.phone;
-        const combinedParentPhone = trimmedData.parentPhoneCountryCode === 'Other' ? trimmedData.parentPhone : trimmedData.parentPhoneCountryCode + trimmedData.parentPhone;
-
-        // 4. Insert Application Data (try with new columns first)
-        let insertPayload = {
-          id: appId,
-          full_name: trimmedData.fullName,
-          email: trimmedData.email,
-          phone: combinedPhone,
-          address: trimmedData.address,
-          dob: trimmedData.dob,
-          gender: trimmedData.gender,
-          parent_name: trimmedData.parentName,
-          parent_phone: combinedParentPhone,
-          department_id: parseInt(trimmedData.departmentId),
-          aadhaar_number: trimmedData.aadhaarNumber,
-          state: trimmedData.state,
-          tenth_percentage: parseFloat(trimmedData.tenthPercentage),
-          tenth_total_marks: parseFloat(trimmedData.tenthTotalMarks),
-          tenth_max_marks: parseFloat(trimmedData.tenthMaxMarks),
-          twelfth_percentage: parseFloat(trimmedData.twelfthPercentage),
-          twelfth_total_marks: parseFloat(trimmedData.twelfthTotalMarks),
-          twelfth_max_marks: parseFloat(trimmedData.twelfthMaxMarks),
-          status: finalStatus,
-          assigned_student_id: assignedStudentId,
-          ocr_status: ocrStatus,
-          ocr_details: ocrDetailsJson
-        };
-
-        let { error: appError } = await supabase.from('applications').insert([insertPayload]);
-        
-        if (appError) {
-          // If columns don't exist in Supabase (Postgres code 42703), retry without new marks/ocr columns
-          if (appError.code === '42703' || (appError.message && appError.message.includes('column'))) {
-            console.log('New columns not present in Supabase applications table, retrying with default schema.');
-            delete insertPayload.tenth_total_marks;
-            delete insertPayload.tenth_max_marks;
-            delete insertPayload.twelfth_total_marks;
-            delete insertPayload.twelfth_max_marks;
-            delete insertPayload.ocr_status;
-            delete insertPayload.ocr_details;
-            
-            const { error: retryError } = await supabase.from('applications').insert([insertPayload]);
-            if (retryError) throw retryError;
-          } else {
-            throw appError;
-          }
-        }
-
-        // 5. Insert Document Records
-        const { error: docsError } = await supabase.from('documents').insert([
-          { application_id: appId, document_type: '10th Marksheet', file_path: marksheet10Url },
-          { application_id: appId, document_type: '12th Marksheet', file_path: marksheet12Url },
-          { application_id: appId, document_type: 'ID Proof', file_path: idProofUrl },
-        ]);
-
-        if (docsError) throw docsError;
-
-        // 6. Insert Status History log
-        const logComment = `OCR Pre-verification Report - Name Match: ${ocrDetails.name_matched ? 'SUCCESS' : 'FAILED'}, Aadhaar Match: ${ocrDetails.aadhaar_matched ? 'SUCCESS' : 'FAILED'}, 10th Marks Match: ${ocrDetails.tenth_matched ? 'SUCCESS' : 'FAILED'}, 12th Marks Match: ${ocrDetails.twelfth_matched ? 'SUCCESS' : 'FAILED'}`;
-        
-        const { error: logError } = await supabase.from('status_history').insert([{
-          application_id: appId,
-          status: finalStatus,
-          comments: logComment
-        }]);
-        if (logError) throw logError;
-
-        setOcrResult({
-          verified: verified,
-          studentId: assignedStudentId,
-          details: ocrDetails,
-          tesseractActive: tActive
+        // Persist the outcome before showing success, so navigating away cannot
+        // leave the application as "Not Processed".
+        await axios.post(`${API_BASE}/admissions/${appId}/ocr-result`, {
+          verified: finalOcrResult.verified,
+          details: finalOcrResult.details
         });
+
+        setOcrResult({ ...finalOcrResult, studentId: null });
         setApplicationId(appId);
         setIsSuccessOpen(true);
       } catch (err) {
         console.error(err);
-        setErrorMsg(err.message || 'Error submitting application to Supabase.');
+        setErrorMsg(err.response?.data?.message || err.message || 'Error submitting application.');
         window.scrollTo({ top: 150, behavior: 'smooth' });
       } finally {
         setSubmittingState('');
@@ -1320,7 +1266,7 @@ export default function Apply() {
                   {submittingState}
                 </>
               ) : (
-                'Submit Application & Run AI Verification'
+                'Submit Application'
               )}
             </button>
           </div>

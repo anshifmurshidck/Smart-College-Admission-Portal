@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { adminFetch } from '../lib/adminApi';
+import { API_BASE } from '../lib/apiBase';
 import { 
   FileText, 
   UserCheck, 
@@ -22,8 +23,6 @@ export default function AdminDashboard() {
   const [errorMsg, setErrorMsg] = useState('');
   const [activityPage, setActivityPage] = useState(1);
   const ACTIVITY_PAGE_SIZE = 15;
-
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
   const loadDashboardData = async () => {
     setLoading(true);

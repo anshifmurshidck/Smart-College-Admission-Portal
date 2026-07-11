@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 import { 
   MessageCircle, X, Send, Bot, Loader2, 
   CheckCircle2, XCircle, AlertCircle, Calendar, 
@@ -112,8 +113,6 @@ export default function Chatbot() {
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
-
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
   // Local keyword responder used as a fallback when the AI backend is unreachable.
   const localKeywordReply = (lowerText) => {

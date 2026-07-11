@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 
 /* ─────────────────────────────────────────────────────────────
    DEPARTMENT DATA — static fallback + enrichment meta
@@ -654,8 +655,6 @@ export default function Departments() {
   const [loading, setLoading] = useState(true);
   const [headingVisible, setHeadingVisible] = useState(false);
   const [cardsVisible, setCardsVisible] = useState(false);
-
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
     supabase.from('departments').select('*')

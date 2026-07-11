@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { Search, Loader2, AlertCircle, FileText, Calendar, CheckCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, Loader2, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import bgImage from '../assets/track_bg.jpg';
+import { API_BASE } from '../lib/apiBase';
 
 export default function TrackStatus() {
   const [searchParams] = useSearchParams();
@@ -11,10 +11,7 @@ export default function TrackStatus() {
   const [errorMsg, setErrorMsg] = useState('');
   const [data, setData] = useState(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
   useEffect(() => {
-    // If ID is in query string, trigger track automatically
     const queryId = searchParams.get('id');
     if (queryId) {
       setAppId(queryId);
@@ -37,53 +34,33 @@ export default function TrackStatus() {
     setData(null);
 
     try {
-      // Fetch application with department details
-      const { data: appData, error: appError } = await supabase
-        .from('applications')
-        .select(`
-          full_name,
-          status,
-          assigned_student_id,
-          created_at,
-          department:departments(name, code)
-        `)
-        .eq('id', id)
-        .single();
+      const response = await fetch(`${API_BASE}/admissions/track/${encodeURIComponent(id)}`);
+      const payload = await response.json().catch(() => ({}));
 
-      if (appError || !appData) {
-        throw new Error('Failed to locate application. Verify the ID and try again.');
+      if (!response.ok) {
+        throw new Error(payload.message || 'Failed to locate application. Verify the ID and try again.');
       }
 
-      // Fetch status history
-      const { data: historyData, error: historyError } = await supabase
-        .from('status_history')
-        .select('*')
-        .eq('application_id', id)
-        .order('updated_at', { ascending: true });
+      const appData = payload.application;
+      const historyData = payload.timeline || [];
 
-      let timeline = [];
-      if (historyData && historyData.length > 0) {
-        timeline = historyData;
-      } else {
-        // Provide a default timeline entry if history is empty
-        timeline = [{
-          status: appData.status,
-          updated_at: appData.created_at,
-          comments: appData.status === 'Pending' 
-            ? 'Application successfully submitted and is awaiting review.'
-            : 'Application status updated.'
-        }];
-      }
+      const timeline = historyData.length > 0 ? historyData : [{
+        status: appData.status,
+        updated_at: appData.createdAt,
+        comments: appData.status === 'Pending'
+          ? 'Application successfully submitted and is awaiting review.'
+          : 'Application status updated.'
+      }];
 
       setData({
         application: {
-          fullName: appData.full_name,
-          departmentCode: appData.department.code,
-          departmentName: appData.department.name,
+          fullName: appData.fullName,
+          departmentCode: appData.departmentCode,
+          departmentName: appData.departmentName,
           status: appData.status,
-          studentId: appData.assigned_student_id
+          studentId: appData.studentId
         },
-        timeline: timeline
+        timeline
       });
     } catch (err) {
       console.error(err);
@@ -106,9 +83,32 @@ export default function TrackStatus() {
     }
   };
 
+
+  const getStudentTimelineComment = (item) => {
+    const comments = item?.comments || '';
+
+    if (/OCR Pre-verification Report/i.test(comments)) {
+      const allMatched =
+        /Name Match:\s*SUCCESS/i.test(comments) &&
+        /Aadhaar Match:\s*SUCCESS/i.test(comments) &&
+        /10th Marks Match:\s*SUCCESS/i.test(comments) &&
+        /12th Marks Match:\s*SUCCESS/i.test(comments);
+
+      return allMatched
+        ? 'Your submitted documents matched the details entered in the application.'
+        : 'Your documents have been received. Some details require verification by the admissions office.';
+    }
+
+    if (/manual review|verification server|pre-verification unavailable/i.test(comments)) {
+      return 'Your documents have been received and are awaiting admissions office verification.';
+    }
+
+    return comments || 'Application status updated.';
+  };
+
   return (
-    <div style={{ 
-      padding: '120px 0 60px 0', 
+    <div style={{
+      padding: '120px 0 60px 0',
       minHeight: '100vh',
       backgroundImage: `url(${bgImage})`,
       backgroundSize: 'cover',
@@ -118,8 +118,7 @@ export default function TrackStatus() {
     }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--bg-primary)', opacity: 0.85, zIndex: 0 }}></div>
       <div className="container" style={{ maxWidth: '700px', position: 'relative', zIndex: 1 }}>
-        
-        {/* Title */}
+
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h2 style={{ fontSize: '32px', fontFamily: 'var(--font-secondary)', fontWeight: 800 }}>
             Track Application Status
@@ -129,21 +128,20 @@ export default function TrackStatus() {
           </p>
         </div>
 
-        {/* Search Bar Panel */}
         <form onSubmit={handleTrackSubmit} className="glass-panel" style={{ padding: '24px', display: 'flex', gap: '16px', marginBottom: '32px', alignItems: 'center' }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input 
-              type="text" 
-              value={appId} 
-              onChange={(e) => setAppId(e.target.value)} 
-              className="form-input" 
-              placeholder="e.g. APP-2026-4731" 
-              style={{ paddingLeft: '48px' }} 
+            <input
+              type="text"
+              value={appId}
+              onChange={(e) => setAppId(e.target.value)}
+              className="form-input"
+              placeholder="e.g. APP-2026-4731"
+              style={{ paddingLeft: '48px' }}
             />
           </div>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn-ripple btn-primary"
             disabled={loading}
             style={{ padding: '12px 28px', display: 'flex', gap: '8px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
@@ -153,14 +151,14 @@ export default function TrackStatus() {
         </form>
 
         {errorMsg && (
-          <div 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px', 
-              padding: '16px', 
-              borderRadius: 'var(--radius-sm)', 
-              backgroundColor: 'rgba(239, 68, 68, 0.08)', 
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '16px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
               border: '1px solid rgba(239, 68, 68, 0.2)',
               color: '#ef4444',
               fontSize: '14px',
@@ -173,30 +171,26 @@ export default function TrackStatus() {
           </div>
         )}
 
-        {/* Results Block */}
         {data && (
           <div className="glass-panel" style={{ padding: '40px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-            
-            {/* Status Card */}
             <div style={{ display: 'flex', justifyContent: 'between', flexWrap: 'wrap', gap: '20px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '24px' }}>
               <div>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', tracking: '0.5px' }}>Applicant</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Applicant</span>
                 <h3 style={{ fontSize: '20px', fontWeight: '700' }}>{data.application.fullName}</h3>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Program: {data.application.departmentCode} - {data.application.departmentName}</span>
               </div>
-              
-              {/* Badge */}
+
               {(() => {
                 const s = getStatusDetails(data.application.status);
                 const Icon = s.icon;
                 return (
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    padding: '8px 16px', 
-                    borderRadius: 'var(--radius-full)', 
-                    color: s.color, 
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-full)',
+                    color: s.color,
                     backgroundColor: s.bg,
                     fontWeight: '700',
                     fontSize: '14px',
@@ -209,11 +203,10 @@ export default function TrackStatus() {
               })()}
             </div>
 
-            {/* Enrolled ID Card if approved */}
             {data.application.status === 'Approved' && data.application.studentId && (
-              <div 
-                style={{ 
-                  background: 'linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(124,58,237,0.06) 100%)', 
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(124,58,237,0.06) 100%)',
                   border: '1px solid rgba(37, 99, 235, 0.15)',
                   borderRadius: 'var(--radius-md)',
                   padding: '24px',
@@ -222,7 +215,6 @@ export default function TrackStatus() {
                   gap: '20px'
                 }}
               >
-                <div style={{ fontSize: '32px' }}>🎓</div>
                 <div>
                   <h4 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>Congratulations!</h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -235,20 +227,19 @@ export default function TrackStatus() {
               </div>
             )}
 
-            {/* Timeline */}
             <div>
               <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '24px' }}>Application History</h4>
-              
+
               <div className="timeline">
                 {data.timeline.map((item, idx) => {
                   const s = getStatusDetails(item.status);
                   const dt = new Date(item.updated_at);
                   const isLast = idx === data.timeline.length - 1;
-                  
+
                   return (
                     <div key={idx} className="timeline-item">
                       <div className={`timeline-dot ${isLast ? (item.status === 'Approved' ? 'success' : item.status === 'Rejected' ? 'danger' : 'active') : ''}`} />
-                      
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <span style={{ fontSize: '15px', fontWeight: '700', color: isLast ? s.color : 'var(--text-primary)' }}>
                           {item.status}
@@ -257,7 +248,7 @@ export default function TrackStatus() {
                           {dt.toLocaleDateString()} {dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.5' }}>
-                          {item.comments}
+                          {getStudentTimelineComment(item)}
                         </p>
                       </div>
                     </div>
@@ -265,10 +256,8 @@ export default function TrackStatus() {
                 })}
               </div>
             </div>
-
           </div>
         )}
-
       </div>
     </div>
   );

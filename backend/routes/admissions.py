@@ -1,3 +1,4 @@
+﻿import json
 import os
 import random
 import datetime
@@ -162,8 +163,8 @@ def verify_marks_in_text(text, total_marks, max_marks, target_pct=None):
             print("Context Total Found:", context_total_found)
             print("Context Max Found:", context_max_found)
 
-            if context_max_found:
-                return context_total_found
+            if context_max_found and context_total_found:
+                return True
 
         # Aggregate words were found, but max marks were not read clearly. In
         # that case the entered total must still appear in the aggregate context.
@@ -231,86 +232,21 @@ def verify_name_in_text(text, full_name):
     if not full_name:
         return True
 
-    def get_words(s):
-        return re.findall(r'[a-z0-9]+', s.lower())
+    # Normalize: remove spaces and special characters
+    form_name = re.sub(r'[^a-z]', '', full_name.lower())
+    ocr_name = re.sub(r'[^a-z]', '', text.lower())
 
-    form_words = get_words(full_name)
-    
-    cleaned_text = re.sub(r'[^a-z0-9\s]', ' ', text.lower())
-    ocr_words = cleaned_text.split()
+    print("Form Name :", form_name)
+    print("OCR Text  :", ocr_name)
 
-    if not form_words:
+    if form_name in ocr_name:
+        print("Name matched successfully")
         return True
 
-    # Anchor word is the longest word
-    anchor = max(form_words, key=len)
-    
-    if len(anchor) < 2:
-        return re.sub(r'[^a-z]', '', full_name.lower()) in re.sub(r'[^a-z]', '', text.lower())
-
-    # Find anchor indices in OCR words
-    anchor_indices = []
-    for i, w in enumerate(ocr_words):
-        if w == anchor:
-            anchor_indices.append(i)
-        elif len(anchor) >= 4 and anchor in w:
-            anchor_indices.append(i)
-
-    if not anchor_indices:
-        return False
-
-    # Check each anchor match
-    for idx in anchor_indices:
-        n_size = len(form_words) + 1
-        start = max(0, idx - n_size)
-        end = min(len(ocr_words), idx + n_size + 1)
-        neighborhood = ocr_words[start:end]
-
-        # Gather single-letter initials in form and OCR neighborhood
-        form_initials = {w for w in form_words if len(w) == 1}
-        
-        ocr_initials = set()
-        for w in neighborhood:
-            if len(w) <= 3:
-                for char in w:
-                    if char.isalpha():
-                        ocr_initials.add(char)
-        
-        anchor_word_ocr = ocr_words[idx]
-        if anchor_word_ocr.startswith(anchor):
-            suffix = anchor_word_ocr[len(anchor):]
-            for char in suffix:
-                if char.isalpha():
-                    ocr_initials.add(char)
-
-        # Check multi-letter words matching
-        multi_letter_words = [w for w in form_words if len(w) > 1 and w != anchor]
-        multi_letter_match = True
-        for m_word in multi_letter_words:
-            found = False
-            for w in neighborhood:
-                if w == anchor:
-                    continue
-                if len(w) > 1:
-                    if m_word in w or w in m_word:
-                        found = True
-                        break
-                else:
-                    if m_word == w:
-                        found = True
-                        break
-            if not found:
-                multi_letter_match = False
-                break
-
-        # Check initials matching
-        initials_match = form_initials.issubset(ocr_initials)
-
-        if multi_letter_match and initials_match:
-            return True
-
+    print("Name mismatch")
     return False
 
+   
 def verify_aadhaar_in_text(text, aadhaar):
     if not aadhaar:
         return True
@@ -380,6 +316,19 @@ def verify_ocr():
         marksheet10.save(m10_path)
         marksheet12.save(m12_path)
         id_proof.save(id_path)
+        print("=" * 80)
+        print("10th Path:", m10_path)
+        print("Exists:", os.path.exists(m10_path))
+        print("Size:", os.path.getsize(m10_path))
+
+        print("12th Path:", m12_path)
+        print("Exists:", os.path.exists(m12_path))
+        print("Size:", os.path.getsize(m12_path))
+
+        print("ID Path:", id_path)
+        print("Exists:", os.path.exists(id_path))
+        print("Size:", os.path.getsize(id_path))
+        print("=" * 80)
 
         
         import concurrent.futures
@@ -393,6 +342,20 @@ def verify_ocr():
             m10_text = future_m10.result()
             m12_text = future_m12.result()
             id_text = future_id.result()
+            print("=" * 80)
+            print("10th OCR Length:", len(m10_text) if m10_text else 0)
+            print("12th OCR Length:", len(m12_text) if m12_text else 0)
+            print("ID OCR Length:", len(id_text) if id_text else 0)
+
+            print("10th OCR Preview:")
+            print(m10_text[:500] if m10_text else "EMPTY")
+
+            print("12th OCR Preview:")
+            print(m12_text[:500] if m12_text else "EMPTY")
+
+            print("ID OCR Preview:")
+            print(id_text[:500] if id_text else "EMPTY")
+            print("=" * 80)
         print("===== FORM VALUES =====")
         print("Name:", full_name)
         print("Aadhaar:", aadhaar_number)
@@ -431,31 +394,35 @@ def verify_ocr():
         except Exception:
             is_tesseract_installed = False
 
-        # If OCR completely fails (e.g., Gemini API rate limit or error)
+        # If OCR completely fails or returns no readable document text
         ocr_failed = not m10_text and not m12_text and not id_text
         
         if ocr_failed:
             print("[OCR SYSTEM] OCR extraction failed or returned empty for all documents.")
             details['error'] = True
-            details['name_matched'] = False
-            details['aadhaar_matched'] = False
-            details['tenth_matched'] = False
-            details['twelfth_matched'] = False
+            details['manual_review'] = True
+            # An unreadable document is not a mismatch. Keep the checks unknown so
+            # the UI can request review without incorrectly flagging the applicant.
+            details['name_matched'] = None
+            details['aadhaar_matched'] = None
+            details['tenth_matched'] = None
+            details['twelfth_matched'] = None
         else:
-            # 1. ID Proof checks
-            if id_text and id_text.strip():
-                name_match = verify_name_in_text(id_text, full_name)
-                aadhaar_match = verify_aadhaar_in_text(id_text, aadhaar_number)
+            # Name can appear on the ID proof or either marksheet.
+            identity_text = "\n".join(
+                text for text in (id_text, m10_text, m12_text) if text and text.strip()
+            )
 
-                print("Name Match:", name_match)
-                print("Aadhaar Match:", aadhaar_match)
+            details['name_matched'] = (
+                verify_name_in_text(identity_text, full_name)
+                if identity_text else None
+            )
 
-                details['name_matched'] = name_match
-                details['aadhaar_matched'] = aadhaar_match
-            else:
-                details['name_matched'] = False
-                details['aadhaar_matched'] = False
-
+            # Aadhaar must be verified only from the ID proof.
+            details['aadhaar_matched'] = (
+                verify_aadhaar_in_text(id_text, aadhaar_number)
+                if id_text and id_text.strip() else None
+            )
             # 2. 10th Marksheet checks
             if m10_text and m10_text.strip():
                 tenth_pct_match = verify_percentage_in_text(m10_text, tenth_percentage)
@@ -489,6 +456,8 @@ def verify_ocr():
         )
 
         message = "OCR verification successful. All documents matched." if verified else "OCR verification flagged. Mismatch or error in documents."
+        if details.get('error'):
+            message = "OCR verification is currently unavailable. Documents were sent for manual review."
 
         print("===== FINAL DETAILS =====")
         print(details)
@@ -509,6 +478,43 @@ def verify_ocr():
             'verified': False,
             'message': f"Internal error during OCR processing: {str(e)}"
         }), 500
+
+
+@admissions_bp.route('/<string:app_id>/ocr-result', methods=['POST'])
+def save_ocr_result(app_id):
+    """Store the result of the non-blocking OCR check started by the applicant UI."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        details = payload.get('details') or {}
+        verified = bool(payload.get('verified'))
+        manual_review = bool(details.get('error') or details.get('manual_review'))
+        ocr_status = 'Manual Review' if manual_review else ('Verified' if verified else 'Flagged')
+        details_json = json.dumps(details)
+
+        application = db.execute_read_one("SELECT id FROM applications WHERE id = %s", (app_id,))
+        if not application:
+            return jsonify({'message': 'Application not found'}), 404
+
+        db.execute_write(
+            "UPDATE applications SET ocr_status = %s, ocr_details = %s WHERE id = %s",
+            (ocr_status, details_json, app_id)
+        )
+
+        if ocr_status == 'Verified':
+            comment = 'Document pre-verification completed. Submitted details matched the uploaded documents.'
+        elif ocr_status == 'Manual Review':
+            comment = 'Automatic document verification could not read all uploaded documents. Admissions review is required.'
+        else:
+            comment = 'Document pre-verification found details that require admissions review.'
+
+        db.execute_write(
+            "INSERT INTO status_history (application_id, status, comments, updated_by) VALUES (%s, %s, %s, NULL)",
+            (app_id, 'Pending', comment)
+        )
+        return jsonify({'message': 'OCR result saved', 'ocrStatus': ocr_status}), 200
+    except Exception as e:
+        print(f"[OCR RESULT] Error saving OCR result: {e}")
+        return jsonify({'message': 'Unable to save OCR result'}), 500
 
 @admissions_bp.route('/apply', methods=['POST'])
 def apply():
@@ -535,6 +541,17 @@ def apply():
         assigned_student_id = None
         ocr_status = request.form.get('ocrStatus', 'Not Processed')
         ocr_details = request.form.get('ocrDetails')
+        if not ocr_details:
+            ocr_details = json.dumps({
+                'name_matched': False,
+                'aadhaar_matched': False,
+                'tenth_matched': False,
+                'twelfth_matched': False,
+                'error': True,
+                'manual_review': True
+            })
+        if ocr_status not in ('Verified', 'Flagged', 'Not Processed'):
+            ocr_status = 'Not Processed'
 
         try:
             tenth_total_marks = float(tenth_total_marks) if tenth_total_marks else None
@@ -674,10 +691,26 @@ def apply():
         history_comment = "Application submitted successfully and is awaiting verification."
         if ocr_details:
             try:
-                import json
                 details_dict = json.loads(ocr_details)
-                history_comment = f"OCR Pre-verification Report - Name Match: {'SUCCESS' if details_dict.get('name_matched') else 'FAILED'}, Aadhaar Match: {'SUCCESS' if details_dict.get('aadhaar_matched') else 'FAILED'}, 10th Marks Match: {'SUCCESS' if details_dict.get('tenth_matched') else 'FAILED'}, 12th Marks Match: {'SUCCESS' if details_dict.get('twelfth_matched') else 'FAILED'}"
-            except:
+
+                if details_dict.get('error') or details_dict.get('manual_review'):
+                    history_comment = "Documents received and queued for admissions office verification."
+                elif all([
+                    details_dict.get('name_matched'),
+                    details_dict.get('aadhaar_matched'),
+                    details_dict.get('tenth_matched'),
+                    details_dict.get('twelfth_matched')
+                ]):
+                    history_comment = (
+                        "Document pre-verification completed. "
+                        "Submitted details matched the uploaded documents."
+                    )
+                else:
+                    history_comment = (
+                        "Documents received. Some details require verification "
+                        "by the admissions office."
+                    )
+            except (TypeError, json.JSONDecodeError):
                 pass
 
         # Insert Status History
@@ -688,7 +721,8 @@ def apply():
 
         return jsonify({
             'message': 'Application submitted successfully',
-            'applicationId': app_id
+            'applicationId': app_id,
+            'ocrStatus': ocr_status
         }), 201
 
     except Exception as e:
