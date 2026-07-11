@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, AlertCircle } from 'lucide-react';
+import axios from 'axios';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -22,7 +23,7 @@ export default function AdminLogin() {
     }
   }, [navigate]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!username || !password) {
       setErrorMsg('Username and password are required.');
@@ -32,17 +33,20 @@ export default function AdminLogin() {
     setErrorMsg('');
     setLoading(true);
 
-    setTimeout(() => {
-      if (username === 'admin' && password === 'admin123') {
-        localStorage.setItem('adminToken', 'dummy-admin-token-12345');
-        localStorage.setItem('adminData', JSON.stringify({ username: 'admin', name: 'Super Admin', role: 'super_admin' }));
-        setLoading(false);
-        navigate('/admin/dashboard');
-      } else {
-        setErrorMsg('Login failed. Verify credentials and try again.');
-        setLoading(false);
-      }
-    }, 800);
+    try {
+      const response = await axios.post(`${API_BASE}/auth/login`, { username, password });
+      
+      // Store token and admin data
+      localStorage.setItem('adminToken', response.data.token);
+      localStorage.setItem('adminData', JSON.stringify(response.data.admin));
+      
+      setLoading(false);
+      navigate('/admin/dashboard');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.response?.data?.message || 'Login failed. Verify credentials and try again.');
+      setLoading(false);
+    }
   };
 
   const handleForgotSubmit = (e) => {
@@ -177,9 +181,7 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: 'var(--text-muted)' }}>
-          * Default credentials: <strong>admin</strong> / <strong>admin123</strong>
-        </div>
+
       </div>
 
       {/* Forgot Password Modal */}

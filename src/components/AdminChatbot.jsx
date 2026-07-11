@@ -65,7 +65,7 @@ export default function AdminChatbot() {
       }));
 
       const response = await axios.post(
-        `${API_BASE}/admin/chat`,
+        `${API_BASE}/chatbot/chat`,
         {
           message: userText,
           history: chatHistory.slice(-10)
