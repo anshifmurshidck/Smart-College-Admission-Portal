@@ -22,7 +22,8 @@ class DatabaseManager:
                 user=Config.MYSQL_USER,
                 password=Config.MYSQL_PASSWORD,
                 database=Config.MYSQL_DB,
-                cursorclass=pymysql.cursors.DictCursor
+                cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=2
             )
             self.is_sqlite = False
             return conn
