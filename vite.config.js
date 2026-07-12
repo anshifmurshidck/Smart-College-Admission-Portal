@@ -8,6 +8,7 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'axios', 'framer-motion']
   },
   server: {
+    host: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
