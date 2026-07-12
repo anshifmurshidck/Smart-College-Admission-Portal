@@ -111,6 +111,12 @@ export default function StudentDatabase() {
       const { data, error } = await query;
       if (error) throw error;
       
+      if (!data) {
+        setStudents([]);
+        setPage(1);
+        return;
+      }
+
       const formatted = data.map(app => ({
         id: app.assigned_student_id || `TMP-${app.id}`,
         application_id: app.id,
@@ -127,7 +133,8 @@ export default function StudentDatabase() {
       setStudents(formatted);
       setPage(1);
     } catch (err) {
-      setErrorMsg('Failed to load student database.');
+      console.error(err);
+      setErrorMsg(`Failed to load student database: ${err.message || err.toString()}`);
     } finally {
       setLoading(false);
     }

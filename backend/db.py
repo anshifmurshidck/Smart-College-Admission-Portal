@@ -15,6 +15,15 @@ class DatabaseManager:
             return sqlite3.connect(Config.SQLITE_PATH)
 
         try:
+            # Fast socket check to prevent 15-second timeout hang if MySQL is offline
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.2)
+                try:
+                    s.connect((Config.MYSQL_HOST, int(Config.MYSQL_PORT)))
+                except Exception:
+                    raise Exception(f"Port {Config.MYSQL_PORT} on {Config.MYSQL_HOST} is not accepting connections (Fast Check Failed)")
+
             # Try MySQL connection
             conn = pymysql.connect(
                 host=Config.MYSQL_HOST,

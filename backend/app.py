@@ -62,6 +62,17 @@ def create_app():
 
 app = create_app()
 
+def validate_environment():
+    missing = []
+    if not os.getenv('JWT_SECRET'):
+        print("[WARNING] JWT_SECRET is not set in .env. Using a default development key, which is insecure!")
+    if not os.getenv('GEMINI_API_KEY'):
+        print("[WARNING] GEMINI_API_KEY is not set. Chatbot will use the fallback database system.")
+    elif not os.getenv('GEMINI_API_KEY').startswith('AIzaSy'):
+        print("[WARNING] GEMINI_API_KEY does not appear to be a valid Google AI Studio key (should start with AIzaSy). Chatbot may fail to connect.")
+
+validate_environment()
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)

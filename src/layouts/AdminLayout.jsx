@@ -22,7 +22,18 @@ export default function AdminLayout() {
   
   // Auth Guard
   const token = localStorage.getItem('adminToken');
-  const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
+  let adminData = {};
+  try {
+    const rawData = localStorage.getItem('adminData');
+    if (rawData) {
+      adminData = JSON.parse(rawData);
+    }
+  } catch (e) {
+    console.error("Failed to parse admin data from local storage", e);
+    // If data is corrupt, force logout
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminData');
+  }
 
   if (!token) {
     // If no JWT token is stored, redirect to login

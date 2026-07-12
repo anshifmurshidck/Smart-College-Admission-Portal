@@ -78,10 +78,10 @@ export default function ApplicationsList() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setApplications(data);
+      setApplications(data || []);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Failed to retrieve applications database.');
+      setErrorMsg(`Failed to retrieve applications database: ${err.message || err.toString()}`);
     } finally {
       setLoading(false);
     }
