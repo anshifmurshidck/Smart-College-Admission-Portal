@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"vite\"",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api:win\" \"vite\"",
     "dev:api": "cd ../backend && sh -c 'if [ -x venv/bin/python ]; then exec venv/bin/python run.py; else exec python3 run.py; fi'",
     "dev:win": "concurrently -n api,web -c blue,green \"npm run dev:api:win\" \"vite\"",
     "dev:api:win": "cd ../backend && venv\\Scripts\\python run.py",

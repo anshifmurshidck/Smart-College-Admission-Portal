@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { adminFetch } from '../lib/adminApi';
+import { API_BASE } from '../lib/apiBase';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
 import {
@@ -94,7 +95,6 @@ export default function StudentDatabase() {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   const token = () => localStorage.getItem('adminToken');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
 

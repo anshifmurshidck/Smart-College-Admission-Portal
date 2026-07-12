@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { adminFetch } from '../lib/adminApi';
+import { API_BASE } from '../lib/apiBase';
 import { 
   Search, 
   Filter, 
@@ -28,9 +29,25 @@ const getOcrReport = (app, timeline) => {
   if (app && app.ocr_status && app.ocr_status !== 'Not Processed') {
     try {
       const details = app.ocr_details ? JSON.parse(app.ocr_details) : {};
+      // A report with no positive read from any document is an extraction failure,
+      // not reliable evidence of four independent mismatches.
+      const noChecksMatched = [
+        details.name_matched,
+        details.aadhaar_matched,
+        details.tenth_matched,
+        details.twelfth_matched
+      ].every(value => value === false);
+      const normalizedDetails = noChecksMatched ? {
+        ...details,
+        manual_review: true,
+        name_matched: null,
+        aadhaar_matched: null,
+        tenth_matched: null,
+        twelfth_matched: null
+      } : details;
       return {
-        ocrStatus: app.ocr_status,
-        details: details
+        ocrStatus: (details.error || details.manual_review || noChecksMatched) ? 'Manual Review' : app.ocr_status,
+        details: normalizedDetails
       };
     } catch (e) {
       // ignore JSON parse error
@@ -47,6 +64,22 @@ const getOcrReport = (app, timeline) => {
       const tenth_matched = comment.includes('10th Marks Match: SUCCESS');
       const twelfth_matched = comment.includes('12th Marks Match: SUCCESS');
       const verified = name_matched && aadhaar_matched && tenth_matched && twelfth_matched;
+
+      // Older log messages cannot distinguish an unreadable OCR response from a
+      // mismatch. If none of the checks produced a positive read, do not present
+      // four failures as facts; mark the record for human review instead.
+      if (!name_matched && !aadhaar_matched && !tenth_matched && !twelfth_matched) {
+        return {
+          ocrStatus: 'Manual Review',
+          details: {
+            manual_review: true,
+            name_matched: null,
+            aadhaar_matched: null,
+            tenth_matched: null,
+            twelfth_matched: null
+          }
+        };
+      }
       
       return {
         ocrStatus: verified ? 'Verified' : 'Flagged',
@@ -89,8 +122,12 @@ export default function ApplicationsList() {
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
-  const SERVER_HOST = 'http://127.0.0.1:5000'; // For file serving
+  const API_ORIGIN = API_BASE.startsWith('http') ? new URL(API_BASE).origin : window.location.origin;
+  const getDocumentUrl = (filePath) => {
+    if (!filePath) return '#';
+    if (filePath.startsWith('http')) return filePath;
+    return `${API_ORIGIN}/${filePath.replace(/^\/+/, '')}`;
+  };
 
   const loadApplications = async () => {
     setLoading(true);
@@ -405,7 +442,7 @@ export default function ApplicationsList() {
                   <td style={{ padding: '16px', fontWeight: '700', color: 'var(--color-royal)' }}>{app.id}</td>
                   <td style={{ padding: '16px', fontWeight: '600' }}>{app.full_name}</td>
                   <td style={{ padding: '16px' }}>{app.email}</td>
-                  <td style={{ padding: '16px' }}>{app.department?.name || '-'}</td>
+                  <td style={{ padding: '16px' }}>{app.department_name || app.department_code || '-'}</td>
                   <td style={{ padding: '16px' }}>{getOcrBadge(app)}</td>
                   <td style={{ padding: '16px' }}>{getStatusBadge(app.status)}</td>
                   <td style={{ padding: '16px' }}>
@@ -608,6 +645,19 @@ export default function ApplicationsList() {
                       </div>
                     );
                   }
+                  if (report && report.ocrStatus === 'Manual Review') {
+                    return (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '12px', padding: '16px',
+                        borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.2)', color: '#d97706',
+                        fontSize: '13px', fontWeight: '600'
+                      }}>
+                        <AlertCircle size={20} />
+                        <span>Automatic verification could not read every document. This is not a mismatch; admissions review is required.</span>
+                      </div>
+                    );
+                  }
                   return null;
                 })()}
 
@@ -699,8 +749,10 @@ export default function ApplicationsList() {
 
                 {/* OCR Pre-verification Card */}
                 {(() => {
-                  const report = getOcrReport(modalDetails.application, modalDetails.timeline);
-                  if (!report) return null;
+                  const report = getOcrReport(modalDetails.application, modalDetails.timeline) || {
+                    ocrStatus: 'Not Processed',
+                    details: {}
+             };
                   
                   const isVerified = report.ocrStatus === 'Verified';
                   
@@ -735,26 +787,26 @@ export default function ApplicationsList() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
                           <span style={{ color: 'var(--text-secondary)' }}>Applicant Name:</span>
-                          <span style={{ fontWeight: '700', color: report.details.name_matched ? '#059669' : '#ef4444' }}>
-                            {report.details.name_matched ? '✓ Match' : '✗ Mismatch'}
+                          <span style={{ fontWeight: '700', color: report.details.name_matched === null ? '#64748b' : (report.details.name_matched ? '#059669' : '#ef4444') }}>
+                            {report.details.name_matched === null ? '— Not read' : (report.details.name_matched ? '✓ Match' : '✗ Mismatch')}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
                           <span style={{ color: 'var(--text-secondary)' }}>Aadhaar Number:</span>
-                          <span style={{ fontWeight: '700', color: report.details.aadhaar_matched ? '#059669' : '#ef4444' }}>
-                            {report.details.aadhaar_matched ? '✓ Match' : '✗ Mismatch'}
+                          <span style={{ fontWeight: '700', color: report.details.aadhaar_matched === null ? '#64748b' : (report.details.aadhaar_matched ? '#059669' : '#ef4444') }}>
+                            {report.details.aadhaar_matched === null ? '— Not read' : (report.details.aadhaar_matched ? '✓ Match' : '✗ Mismatch')}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
                           <span style={{ color: 'var(--text-secondary)' }}>10th Marksheet:</span>
-                          <span style={{ fontWeight: '700', color: report.details.tenth_matched ? '#059669' : '#ef4444' }}>
-                            {report.details.tenth_matched ? '✓ Match' : '✗ Mismatch'}
+                          <span style={{ fontWeight: '700', color: report.details.tenth_matched === null ? '#64748b' : (report.details.tenth_matched ? '#059669' : '#ef4444') }}>
+                            {report.details.tenth_matched === null ? '— Not read' : (report.details.tenth_matched ? '✓ Match' : '✗ Mismatch')}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
                           <span style={{ color: 'var(--text-secondary)' }}>12th Marksheet:</span>
-                          <span style={{ fontWeight: '700', color: report.details.twelfth_matched ? '#059669' : '#ef4444' }}>
-                            {report.details.twelfth_matched ? '✓ Match' : '✗ Mismatch'}
+                          <span style={{ fontWeight: '700', color: report.details.twelfth_matched === null ? '#64748b' : (report.details.twelfth_matched ? '#059669' : '#ef4444') }}>
+                            {report.details.twelfth_matched === null ? '— Not read' : (report.details.twelfth_matched ? '✓ Match' : '✗ Mismatch')}
                           </span>
                         </div>
                       </div>
@@ -782,8 +834,12 @@ export default function ApplicationsList() {
                     Uploaded Verification Files
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
-                    {modalDetails.documents.map((doc) => {
-                      const fileUrl = doc.file_path.startsWith('http') ? doc.file_path : `${SERVER_HOST}/${doc.file_path}`;
+                    {modalDetails.documents.length === 0 ? (
+                      <div style={{ gridColumn: '1 / -1', padding: '18px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        No verification files have been uploaded for this application yet.
+                      </div>
+                    ) : modalDetails.documents.map((doc) => {
+                      const fileUrl = getDocumentUrl(doc.file_path);
                       const isImage = doc.file_path.match(/\.(png|jpg|jpeg)$/i);
                       
                       return (

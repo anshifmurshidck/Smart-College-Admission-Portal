@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Download, FileText, Users, BarChart2, Loader2, CheckCircle } from 'lucide-react';
+import { API_BASE } from '../lib/apiBase';
 
 export default function Reports() {
   const [generating, setGenerating] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   const token = localStorage.getItem('adminToken');
 
   const generateReport = async (type, format) => {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 
 // Validate password hash using client-side Web Crypto PBKDF2 (matching Werkzeug hashes)
 const verifyPasswordHash = async (password, storedHash) => {
@@ -68,8 +69,6 @@ export default function AdminLogin() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
-
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
     // If token already exists, redirect straight to dashboard

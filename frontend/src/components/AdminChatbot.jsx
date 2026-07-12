@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Sparkles, MessageSquare, X, CornerDownLeft, Loader2, User, MessageCircle } from 'lucide-react';
+import { API_BASE } from '../lib/apiBase';
 
 export default function AdminChatbot() {
   const navigate = useNavigate();
@@ -21,7 +22,6 @@ export default function AdminChatbot() {
   const [isGeminiActive, setIsGeminiActive] = useState(true);
   const messagesEndRef = useRef(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   const token = () => localStorage.getItem('adminToken');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
 
