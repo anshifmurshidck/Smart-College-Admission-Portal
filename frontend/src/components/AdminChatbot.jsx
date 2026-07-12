@@ -274,7 +274,7 @@ export default function AdminChatbot() {
       <style>{`
         .glb-chatbot-trigger {
           position: fixed;
-          bottom: 24px;
+          bottom: 80px;
           right: 24px;
           width: 56px;
           height: 56px;

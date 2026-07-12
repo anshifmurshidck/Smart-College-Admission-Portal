@@ -307,7 +307,7 @@ export default function Chatbot() {
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
-          bottom: '24px',
+          bottom: '80px',
           right: '24px',
           width: '60px',
           height: '60px',

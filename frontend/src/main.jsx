@@ -36,23 +36,11 @@ if (!rootElement) {
         </ErrorBoundary>
       </React.StrictMode>
     )
-
-    // Hide loading screen once React renders
-    if (loadingScreen) {
-      loadingScreen.style.opacity = "0"
-      loadingScreen.style.transition = "opacity 0.4s ease-out"
-      loadingScreen.style.pointerEvents = "none"
-      
-      setTimeout(() => {
-        if (loadingScreen && loadingScreen.parentNode) {
-          loadingScreen.remove()
-        }
-      }, 400)
-    }
   } catch (error) {
     console.error("React rendering error:", error)
     if (loadingScreen) {
       loadingScreen.innerHTML = `<div style="color: #ef4444; text-align: center; padding: 20px;"><h1>App Load Error</h1><p>${error.message}</p></div>`
+      loadingScreen.style.opacity = "1"
     }
   }
 }

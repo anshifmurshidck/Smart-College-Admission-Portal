@@ -23,6 +23,7 @@ reports_bp = Blueprint('reports', __name__)
 def generate_report(current_user):
     report_type = request.args.get('type', 'admission') # 'admission', 'student', 'department'
     file_format = request.args.get('format', 'pdf') # 'pdf', 'excel'
+    status_filter = request.args.get('status', None)
 
     if report_type not in ('admission', 'student', 'department'):
         return jsonify({'message': 'Invalid report type requested'}), 400
@@ -30,15 +31,29 @@ def generate_report(current_user):
         return jsonify({'message': 'Invalid file format requested'}), 400
 
     try:
+        filename_prefix = report_type
         if report_type == 'admission':
-            data = db.execute_read(
-                """SELECT a.id, a.full_name, a.email, a.status, a.created_at, d.code as department_code 
-                   FROM applications a
-                   JOIN departments d ON a.department_id = d.id
-                   ORDER BY a.created_at DESC"""
-            )
+            query = """SELECT a.id, a.full_name, a.email, a.status, a.created_at, d.code as department_code 
+                       FROM applications a
+                       JOIN departments d ON a.department_id = d.id"""
+            params = []
+            if status_filter:
+                query += " WHERE a.status = %s"
+                params.append(status_filter)
+            query += " ORDER BY a.created_at DESC"
+            
+            data = db.execute_read(query, tuple(params) if params else None)
             headers = ['Application ID', 'Full Name', 'Email', 'Department', 'Status', 'Applied Date']
-            title = "Thought Minds Engineering College - Admission Applications Report"
+            
+            if status_filter == 'Approved':
+                title = "Thought Minds Engineering College - Approved Students Report"
+                filename_prefix = "approved_students"
+            elif status_filter == 'Rejected':
+                title = "Thought Minds Engineering College - Rejected Students Report"
+                filename_prefix = "rejected_students"
+            else:
+                title = "Thought Minds Engineering College - Admission Applications Report"
+                
             sheet_name = "Applications"
         elif report_type == 'student':
             data = db.execute_read(
@@ -62,16 +77,16 @@ def generate_report(current_user):
             sheet_name = "Departments"
 
         if file_format == 'pdf':
-            return make_pdf_response(title, headers, data, report_type)
+            return make_pdf_response(title, headers, data, report_type, filename_prefix)
         else:
-            return make_excel_response(title, headers, data, report_type, sheet_name)
+            return make_excel_response(title, headers, data, report_type, sheet_name, filename_prefix)
 
     except Exception as e:
         print(f"[REPORT GENERATION ERROR]: {e}")
         return jsonify({'message': 'Error generating report', 'error': str(e)}), 500
 
 
-def make_pdf_response(title, headers, data, report_type):
+def make_pdf_response(title, headers, data, report_type, filename_prefix):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
@@ -217,7 +232,7 @@ def make_pdf_response(title, headers, data, report_type):
     doc.build(story)
     
     buffer.seek(0)
-    filename = f"{report_type}_report_{datetime.datetime.now().strftime('%Y%m%d%H%M')}.pdf"
+    filename = f"{filename_prefix}_report_{datetime.datetime.now().strftime('%Y%m%d%H%M')}.pdf"
     
     return send_file(
         buffer,
@@ -227,7 +242,7 @@ def make_pdf_response(title, headers, data, report_type):
     )
 
 
-def make_excel_response(title, headers, data, report_type, sheet_name):
+def make_excel_response(title, headers, data, report_type, sheet_name, filename_prefix):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = sheet_name
@@ -340,7 +355,7 @@ def make_excel_response(title, headers, data, report_type, sheet_name):
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
-    filename = f"{report_type}_report_{datetime.datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
+    filename = f"{filename_prefix}_report_{datetime.datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
     
     return send_file(
         buffer,
@@ -348,3 +363,102 @@ def make_excel_response(title, headers, data, report_type, sheet_name):
         download_name=filename,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
+@reports_bp.route('/analytics', methods=['GET'])
+@token_required()
+def get_reports_analytics(current_user):
+    try:
+        department_id = request.args.get('departmentId', '').strip()
+        start_date = request.args.get('startDate', '').strip()
+        end_date = request.args.get('endDate', '').strip()
+        status_filter = request.args.get('status', '').strip()
+
+        base_where = "1=1"
+        params = []
+
+        if department_id:
+            base_where += " AND a.department_id = %s"
+            params.append(int(department_id))
+            
+        if start_date:
+            base_where += " AND a.created_at >= %s"
+            params.append(start_date + " 00:00:00")
+            
+        if end_date:
+            base_where += " AND a.created_at <= %s"
+            params.append(end_date + " 23:59:59")
+            
+        if status_filter:
+            base_where += " AND a.status = %s"
+            params.append(status_filter)
+
+        # 1. Summary Cards
+        cards_query = f"""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN a.status = 'Approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN a.status = 'Rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN a.status IN ('Pending', 'Under Verification') THEN 1 ELSE 0 END) as pending
+            FROM applications a
+            WHERE {base_where}
+        """
+        cards_stats = db.execute_read_one(cards_query, tuple(params))
+        
+        # Get total students independently of applications filter, but respect department
+        student_query = "SELECT COUNT(*) as total_students FROM students s"
+        if department_id:
+            student_query += " WHERE department_id = %s"
+            student_stats = db.execute_read_one(student_query, (int(department_id),))
+        else:
+            student_stats = db.execute_read_one(student_query)
+
+        # 2. Department-wise stats
+        dept_query = f"""
+            SELECT 
+                d.name, 
+                d.code,
+                COUNT(a.id) as total,
+                SUM(CASE WHEN a.status = 'Approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN a.status = 'Rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN a.status IN ('Pending', 'Under Verification') THEN 1 ELSE 0 END) as pending
+            FROM departments d
+            LEFT JOIN applications a ON a.department_id = d.id AND {base_where.replace('a.department_id', 'd.id')}
+            GROUP BY d.id
+        """
+        dept_stats = db.execute_read(dept_query, tuple(params))
+        
+        # 3. Status Distribution (Pie Chart)
+        pie_data = [
+            {'name': 'Approved', 'value': int(cards_stats['approved'] or 0)},
+            {'name': 'Pending', 'value': int(cards_stats['pending'] or 0)},
+            {'name': 'Rejected', 'value': int(cards_stats['rejected'] or 0)}
+        ]
+
+        # 4. Timeline data (Applications over time)
+        date_format = "strftime('%Y-%m-%d', a.created_at)" if db.is_sqlite else "DATE(a.created_at)"
+        timeline_query = f"""
+            SELECT {date_format} as date, COUNT(*) as count
+            FROM applications a
+            WHERE {base_where}
+            GROUP BY date
+            ORDER BY date ASC
+            LIMIT 30
+        """
+        timeline_stats = db.execute_read(timeline_query, tuple(params))
+
+        return jsonify({
+            'cards': {
+                'total': int(cards_stats['total'] or 0),
+                'approved': int(cards_stats['approved'] or 0),
+                'rejected': int(cards_stats['rejected'] or 0),
+                'pending': int(cards_stats['pending'] or 0),
+                'total_students': int(student_stats['total_students'] or 0)
+            },
+            'departments': dept_stats,
+            'pieChart': [d for d in pie_data if d['value'] > 0],
+            'timeline': timeline_stats
+        }), 200
+
+    except Exception as e:
+        print(f"[REPORTS ANALYTICS ERROR]: {e}")
+        return jsonify({'message': 'Error retrieving reports analytics', 'error': str(e)}), 500
