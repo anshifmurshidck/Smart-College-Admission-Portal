@@ -555,8 +555,8 @@ export default function Apply() {
 
         const submitResponse = await axios.post(`${API_BASE}/admissions/apply`, applicationFormData, {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            'Content-Type': 'multipart/form-data',
+          },
         });
 
         const appId = submitResponse.data.applicationId;
